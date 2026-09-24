@@ -149,6 +149,7 @@ void test_position_source_roundtrip()
         {"fr24", PositionSource::FlightRadar24},
         {"adsblol", PositionSource::AdsbLol},
         {"server", PositionSource::FlightWallServer},
+        {"local", PositionSource::LocalReceiver},
     };
     for (const auto &c : cases)
     {
@@ -195,6 +196,47 @@ void test_server_url_trailing_slash_normalized()
     // No trailing slash: left alone.
     TEST_ASSERT_TRUE(g_settings.fromJson(String("{\"api\":{\"serverUrl\":\"https://example.com\"}}")));
     TEST_ASSERT_TRUE(g_settings.serverUrl == "https://example.com");
+}
+
+// receiverUrl is normalised on load: "http://" added to a bare address -- the
+// way people type one -- and trailing slashes dropped. A scheme that is already
+// there is kept, https included.
+void test_receiver_url_normalized()
+{
+    g_settings.seedDefaults();
+    TEST_ASSERT_TRUE(g_settings.fromJson(String("{\"api\":{\"receiverUrl\":\" 192.168.1.50:8080/ \"}}")));
+    TEST_ASSERT_TRUE(g_settings.receiverUrl == "http://192.168.1.50:8080");
+
+    TEST_ASSERT_TRUE(g_settings.fromJson(String("{\"api\":{\"receiverUrl\":\"https://rx.example/data/aircraft.json\"}}")));
+    TEST_ASSERT_TRUE(g_settings.receiverUrl == "https://rx.example/data/aircraft.json");
+
+    // Clearing it stays cleared: no bare "http://" left behind.
+    TEST_ASSERT_TRUE(g_settings.fromJson(String("{\"api\":{\"receiverUrl\":\"\"}}")));
+    TEST_ASSERT_TRUE(g_settings.receiverUrl == "");
+}
+
+// Each unit is stored separately and survives fromJson -> toJson; an unknown
+// name falls back to that quantity's default rather than failing the load.
+void test_units_roundtrip()
+{
+    g_settings.seedDefaults();
+    TEST_ASSERT_TRUE(g_settings.fromJson(String(
+        "{\"units\":{\"altitude\":\"m\",\"speed\":\"kmh\",\"climb\":\"mps\",\"distance\":\"nm\"}}")));
+    TEST_ASSERT_EQUAL((int)AltitudeUnit::Metres, (int)g_settings.units.altitude);
+    TEST_ASSERT_EQUAL((int)SpeedUnit::Kmh, (int)g_settings.units.speed);
+    TEST_ASSERT_EQUAL((int)ClimbUnit::MetresPerSec, (int)g_settings.units.climb);
+    TEST_ASSERT_EQUAL((int)DistanceUnit::NauticalMiles, (int)g_settings.units.distance);
+
+    String out = g_settings.toJson();
+    TEST_ASSERT_TRUE(out.indexOf("\"altitude\":\"m\"") >= 0);
+    TEST_ASSERT_TRUE(out.indexOf("\"speed\":\"kmh\"") >= 0);
+    TEST_ASSERT_TRUE(out.indexOf("\"climb\":\"mps\"") >= 0);
+    TEST_ASSERT_TRUE(out.indexOf("\"distance\":\"nm\"") >= 0);
+
+    // A partial update touches only what it names.
+    TEST_ASSERT_TRUE(g_settings.fromJson(String("{\"units\":{\"speed\":\"warp\"}}")));
+    TEST_ASSERT_EQUAL((int)SpeedUnit::Mph, (int)g_settings.units.speed);
+    TEST_ASSERT_EQUAL((int)AltitudeUnit::Metres, (int)g_settings.units.altitude);
 }
 
 // ---- redacted settings projection ------------------------------------------
@@ -304,8 +346,12 @@ void test_seed_defaults_resets_every_field()
     g_settings.brightness = 99;
     g_settings.maxFlights = 3;
     g_settings.mode = TrackingMode::Flights;
-    g_settings.lightSensorEnabled = false;
+    // Board-guarded default (off on the MatrixPortal S3), so flip whichever it is.
+    g_settings.lightSensorEnabled = !HardwareConfiguration::LIGHT_DEFAULT_ENABLED;
     g_settings.buttonsEnabled = false;
+    g_settings.receiverUrl = "http://stale.example";
+    g_settings.units.altitude = AltitudeUnit::Metres;
+    g_settings.panelRotate180 = true;
     g_settings.panelChain = 7;
     g_settings.layout.showRoute = false;
     g_settings.filters.excludeOnGround = false;
@@ -317,8 +363,11 @@ void test_seed_defaults_resets_every_field()
     TEST_ASSERT_TRUE(g_settings.serverUrl == "");
     TEST_ASSERT_EQUAL((int)PositionSource::OpenSky, (int)g_settings.positionSource);
     TEST_ASSERT_EQUAL((int)TrackingMode::Area, (int)g_settings.mode);
-    TEST_ASSERT_TRUE(g_settings.lightSensorEnabled);
+    TEST_ASSERT_EQUAL(HardwareConfiguration::LIGHT_DEFAULT_ENABLED, g_settings.lightSensorEnabled);
     TEST_ASSERT_TRUE(g_settings.buttonsEnabled);
+    TEST_ASSERT_TRUE(g_settings.receiverUrl == "");
+    TEST_ASSERT_EQUAL((int)AltitudeUnit::Feet, (int)g_settings.units.altitude);
+    TEST_ASSERT_FALSE(g_settings.panelRotate180);
     TEST_ASSERT_TRUE(g_settings.layout.showRoute);
     TEST_ASSERT_TRUE(g_settings.filters.excludeOnGround);
     TEST_ASSERT_TRUE(g_settings.schedule.timezone == "UTC0");
@@ -369,6 +418,8 @@ void setup()
     RUN_TEST(test_position_source_roundtrip);
     RUN_TEST(test_position_source_unknown_falls_back_to_opensky);
     RUN_TEST(test_server_url_trailing_slash_normalized);
+    RUN_TEST(test_receiver_url_normalized);
+    RUN_TEST(test_units_roundtrip);
     RUN_TEST(test_public_json_omits_secrets);
     RUN_TEST(test_persisted_json_still_carries_secrets);
     RUN_TEST(test_empty_secret_does_not_wipe_a_stored_one);
