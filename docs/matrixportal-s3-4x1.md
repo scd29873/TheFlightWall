@@ -98,6 +98,49 @@ The board's PCB antenna ends up flat against the panel's copper ground plane.
   1. Use a shorter ribbon.
   2. Then try Advanced → HUB75 panel → Signal tuning in the web UI.
 
+## Frame and case
+
+Bolt all four panels to **one rigid backer**, not just to each other. Panels joined
+only to their neighbours flex at the seams, and the seams open into visible gaps.
+
+- **Backer.** 9–12 mm plywood or MDF cut to the size of the row (640 × 160 mm at
+  P2.5, 768 × 192 mm at P3). Drill it at the panels' M3 bosses, the posts the
+  magnetic feet screw into, and screw the panels on from behind.
+  - Measure the bosses on your actual panels before cutting: they vary between
+    makers and batches.
+  - Check that each panel's ribbon and power connectors clear the board. If they
+    don't, cut windows for them or space the panels off the board.
+  - 2020 aluminium extrusion works too, with a cross-member under each of the three
+    joins. It blocks WiFi, though (see below).
+- **Seams.** The edge LEDs only land at the right spacing if the panels butt
+  exactly. Clamp a straightedge across each join while you tighten.
+- **Shadow box.** A timber box 50–70 mm deep around the backer hides the wiring and
+  hangs like a picture. A smoked or tinted acrylic front hides the unlit LEDs and
+  improves contrast. It also absorbs light, so expect to run the panels brighter,
+  which means more current and more heat.
+- **Board and WiFi.** Mount the MatrixPortal on its ribbon near an edge of the box,
+  not tucked behind a panel. Timber barely affects WiFi, but aluminium blocks it: with
+  an extrusion frame or a metal box, use the u.FL board and put its antenna outside
+  the metal.
+- **Power supply.** Screw the 5 V supply to the backer with an air gap behind it.
+  - If it has screw terminals for mains, keep the terminal cover on, and use a
+    proper mains lead with strain relief and the earth wire connected.
+  - Or use a plug-in 5 V supply and keep mains out of the box altogether.
+- **Ventilation.** Cut slots top and bottom so warm air can rise out through the box.
+- **Light sensor.** Inside a box, the onboard sensor looks at the inside of the
+  box, so it's no use for auto-dim.
+  - Put an LDR in a small hole at the front edge of the frame instead (see
+    [Auto-dim](#auto-dim)).
+  - If it sits behind the acrylic, calibrate it after the front is on.
+- **Hanging.** Use a French cleat, or two keyhole slots screwed into studs. Four
+  panels plus a backer and a supply weigh more than they look.
+
+**Two 128×64 panels** make the same 256×64 row with one seam instead of three. Set
+the panel size to 128 × 64, chained 2, under Advanced → HUB75 panel. Many 128×64
+panels use the FM6126A driver chip, which is under Signal tuning. Some also use
+unusual scan patterns this library can't drive directly, so confirm a standard
+1/32-scan panel before buying.
+
 ## Flicker
 
 **Signal voltage: nothing to add.** HUB75 panels expect 5 V logic, but the ESP32
