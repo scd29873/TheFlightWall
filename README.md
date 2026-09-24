@@ -2,6 +2,8 @@
 
 TheFlightWall is an LED wall that shows live information about flights passing your window.
 
+> **This repository** is a fork of [FeatherKing/TheFlightWall_OSS](https://github.com/FeatherKing/TheFlightWall_OSS), set up for an **Adafruit MatrixPortal S3 driving four 64×64 panels in a 4×1 row (256×64)**. Start with **[docs/matrixportal-s3-4x1.md](docs/matrixportal-s3-4x1.md)**: parts, chain order, power, flashing, first-time setup, and what this fork changes. Everything below is upstream's README and still applies.
+
 > **About this fork.** This project was **inspired by the original [TheFlightWall](https://github.com/AxisNimble/TheFlightWall_OSS)** (the commercial build sold at [theflightwall.com](https://theflightwall.com)), but it has since diverged almost entirely. The firmware has been essentially rewritten and now shares **almost none of the original code or components**: it drives a **HUB75 RGB matrix** (the original was a WS2812B panel wall), is configured entirely from a built-in **web page**, and uses a new data pipeline (OpenSky + adsbdb/hexdb by default, with optional AeroAPI, Flightradar24, keyless adsb.lol, or a self-hosted FlightWall server that resolves routes and ETA server-side). Full credit for the original concept and build goes to its creators.
 
 This build is at feature parity with the FlightWall Mini: two tracking modes, live flight metrics, filters, and a day/night brightness schedule — all controlled from the web UI, no app required. See [Configuration & Control](#configuration--control-web-ui).
@@ -196,7 +198,7 @@ The wall renders a **Mini-style flight card**: an airline logo tile on the left,
 Tiles are a tiny raw format: `uint16 width, uint16 height`, then `width×height` little-endian RGB565 pixels. They can be any size up to 64×64, and every tool here defaults to 32×32 — the size the bundled badges ship at and the size the 128×64 big-panel layout draws. Pass `--size` to the converters only if you want something else; the renderer auto-fits whatever size you provide, but it only ever upscales.
 
 ### Layouts by panel size
-The flight card adapts to the panel: **128×64** uses a "Mini" layout (32px logo + airline/route/aircraft beside it + two full-width metric rows: `Alt:4.1kft Spd:258mph` / `Trk:263deg <flight #>`, with IATA airport codes) — the second row shows the flight number or vertical rate depending on the toggle above, except that a resolved ETA (FlightWall server only) takes that slot instead, e.g. `Trk:263deg ETA:~1h05`; **64×64** stacks the logo on top; wide/short panels (64×32, 128×32, 160×32) put the logo at left with text beside it.
+The flight card adapts to the panel: **192×64 and wider** (e.g. four 64×64 panels = 256×64) uses a wide card: a 64px logo, then airline + flight number and route + aircraft type in double-size type, over the Mini card's two metric rows; **128×64** uses a "Mini" layout (32px logo + airline/route/aircraft beside it + two full-width metric rows: `Alt:4.1kft Spd:258mph` / `Trk:263deg <flight #>`, with IATA airport codes) — the second row shows the flight number or vertical rate depending on the toggle above, except that a resolved ETA (FlightWall server only) takes that slot instead, e.g. `Trk:263deg ETA:~1h05`; **64×64** stacks the logo on top; wide/short panels (64×32, 128×32, 160×32) put the logo at left with text beside it.
 
 # Credits
 
