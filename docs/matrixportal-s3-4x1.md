@@ -25,7 +25,7 @@ The faint lines are the joins between the four panels.*
 | Adafruit MatrixPortal S3 | **Get the u.FL version (ADA6475) if you can**, with a small external 2.4 GHz antenna. See [WiFi](#mounting-and-wifi). The onboard-antenna version (ADA5778) works too, but mount it on a ribbon. |
 | 4 × 64×64 HUB75 panels | All four the same model. They must be 1/32 scan, which is standard for 64×64. Size by pitch: P2.5 ≈ 640×160 mm, P3 ≈ 768×192 mm, P4 ≈ 1024×256 mm. |
 | 5 V power supply | 10 A minimum, 20 A if you'll run it bright. See [Power](#power). |
-| Power leads + capacitors | One lead per panel from the supply. Put 1000–2000 µF across each panel's power input (the HUB75 library's advice). |
+| Power leads + capacitors | One lead per panel from the supply. Put a 1000–2000 µF electrolytic capacitor, rated 10 V or more, across each panel's power input (the HUB75 library's advice). See [Flicker](#flicker). |
 | HUB75 ribbons | Three to join the panels (they ship with them). Optionally a fourth, to mount the MatrixPortal off the panel. |
 | USB-C supply for the board | A phone charger is fine. Keep it separate from the panel supply. |
 | *(optional)* LDR + 10 kΩ | Only if you want the light sensor at the front, facing the room. See [Auto-dim](#auto-dim). |
@@ -97,6 +97,39 @@ The board's PCB antenna ends up flat against the panel's copper ground plane.
   ghosting or pixels shifted by one:
   1. Use a shorter ribbon.
   2. Then try Advanced → HUB75 panel → Signal tuning in the web UI.
+
+## Flicker
+
+**Signal voltage: nothing to add.** HUB75 panels expect 5 V logic, but the ESP32
+puts out 3.3 V. That gap is why upstream's README recommends adding a 74HCT245
+level shifter. The MatrixPortal S3 already has one built in: two 74AHCT245 chips,
+powered from 5 V, carry all 14 panel signals (Adafruit's schematic).
+
+**Supply voltage: this is where flicker comes from.** Four panels switch large
+currents on and off very quickly, and the 5 V rail dips when they do. What helps:
+
+- A 1000–2000 µF electrolytic capacitor, rated 10 V or more, across each panel's
+  5 V and GND input. Mind the polarity.
+- Each panel on its own lead back to the supply, not daisy-chained through the
+  other panels. Keep the main run from the supply short and thick (e.g. 14–16 AWG).
+- Measure the voltage at the farthest panel while it shows something bright; aim
+  for 4.9–5.2 V. If it's low, shorten or thicken the wires. Many LED supplies also
+  have a V-ADJ screw you can turn up a little, but don't go above about 5.2 V.
+
+At the default brightness (20/255) the flight cards are mostly black and draw
+little current, so sag mostly shows up if you turn the brightness up.
+
+| What you see | Likely cause | Fix |
+|---|---|---|
+| Brightness pulses or colours shift when lots of pixels light up | 5 V sagging under load | Capacitors, shorter/thicker wires, one lead per panel, or lower brightness |
+| The board reboots or WiFi drops when the picture changes | The board's own supply sagging | Give the board its own USB-C supply, as [Power](#power) says |
+| A steady shimmer everywhere, much worse on a phone camera | Refresh rate, not voltage | The boot log should say ~116 Hz; see `FW_HUB75_MIN_REFRESH_HZ` in `platformio.ini` |
+| Ghosting, pixels shifted by one, sparkles | Signal timing or wiring, not voltage | Shorter ribbons; then Advanced → HUB75 panel → Signal tuning: turn off Clock phase first, then try 16 MHz |
+| Garbage or flashing on the panels right after power-on | The panels' driver chip needs an init sequence | Signal tuning → Driver chip: FM6126A |
+
+The firmware already avoids the software kinds of flicker. Each frame is drawn off
+screen and copied to the panels in one go, so you never see a half-drawn card, and
+this build asks for at least 90 Hz refresh.
 
 ## Build and flash
 
