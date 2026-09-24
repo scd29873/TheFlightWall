@@ -62,9 +62,12 @@ static bool tcsRead8(uint8_t reg, uint8_t &out)
 // fix: on the S3, ADC1 is 1-10 while HUB75 owns 4-17, so seven of the ten values
 // this used to accept were live panel data lines. The guard was protecting PSRAM
 // and not the panel's own signals.
+//
+// A predicate rather than the MIN/MAX window since the MatrixPortal S3, whose usable
+// pins (5 and 9) have its buttons and UART RX between them.
 static bool isValidAdc1Pin(uint8_t pin)
 {
-    return pin >= HardwareConfiguration::ADC1_FREE_MIN && pin <= HardwareConfiguration::ADC1_FREE_MAX;
+    return HardwareConfiguration::isUsableAnalogPin(pin);
 }
 
 void LightSensor::begin()
@@ -156,11 +159,9 @@ void LightSensor::begin()
         }
         if (!isValidAdc1Pin(_pin))
         {
-            Serial.printf("LightSensor: pin %u is not ADC1 on this board (valid %u-%u); "
-                          "analog sensor disabled\n",
-                          (unsigned)_pin,
-                          (unsigned)HardwareConfiguration::ADC1_FREE_MIN,
-                          (unsigned)HardwareConfiguration::ADC1_FREE_MAX);
+            Serial.printf("LightSensor: pin %u is not a usable ADC1 pin on this board "
+                          "(see adc1Pins in /api/status); analog sensor disabled\n",
+                          (unsigned)_pin);
             break;
         }
         // ADC1 only (WiFi disables ADC2). 11dB attenuation -> ~full 3.3V range.

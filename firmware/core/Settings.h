@@ -198,13 +198,17 @@ struct Settings
     // ---- Ambient light sensor (auto-off / dim when the room is dark) ----
     // Default ON as a TCS3472. Safe with no sensor attached: the chip-ID check fails,
     // readSensor() returns -1, and update() fail-safes to "lit" so the panel stays on.
-    bool lightSensorEnabled = true;
-    LightSensorType lightSensorType = LightSensorType::TCS3472;
+    // Board-guarded in HardwareConfiguration: the MatrixPortal S3 ships with its
+    // onboard analog sensor selected but OFF, since that sensor is always present.
+    bool lightSensorEnabled = HardwareConfiguration::LIGHT_DEFAULT_ENABLED;
+    LightSensorType lightSensorType = HardwareConfiguration::LIGHT_DEFAULT_ANALOG
+                                          ? LightSensorType::Analog
+                                          : LightSensorType::TCS3472;
     // ADC1 pin for the analog sensor. Board-guarded default: 34 is ADC1 on the classic
     // ESP32 but is octal PSRAM on an S3 N16R8. LightSensor::begin() range-checks it.
     uint8_t lightSensorPin = HardwareConfiguration::LIGHT_ANALOG_PIN;
-    uint16_t lightDarkThreshold = 500;  // below this = dark; UNITS depend on sensor type
-    uint16_t lightHysteresis = 150;     // must rise this far above threshold to turn back on
+    uint16_t lightDarkThreshold = HardwareConfiguration::LIGHT_DEFAULT_DARK_THRESHOLD; // below this = dark; UNITS depend on sensor type
+    uint16_t lightHysteresis = HardwareConfiguration::LIGHT_DEFAULT_HYSTERESIS;        // must rise this far above threshold to turn back on
     bool lightSensorDimInstead = false; // false = blank the panel, true = dim it
     uint8_t lightDimBrightness = 3;     // brightness used when dimming in the dark
 

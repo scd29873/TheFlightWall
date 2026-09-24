@@ -329,6 +329,18 @@ void WebConfigServer::handleGetStatus()
     // Settings.cpp accepts whatever is POSTed without validating it.
     doc["adc1Min"] = HardwareConfiguration::ADC1_FREE_MIN;
     doc["adc1Max"] = HardwareConfiguration::ADC1_FREE_MAX;
+    // The exact pins, for a board whose usable set is not a range (the
+    // MatrixPortal S3: 5 and 9, with buttons and UART RX between them). Derived
+    // from the same predicate LightSensor::begin() enforces, so the list the UI
+    // shows and the pins the sensor accepts cannot disagree. min/max stay for
+    // any older page that only knows them.
+    JsonArray adcPins = doc["adc1Pins"].to<JsonArray>();
+    for (int pin = HardwareConfiguration::ADC1_FREE_MIN; pin <= HardwareConfiguration::ADC1_FREE_MAX; ++pin)
+        if (HardwareConfiguration::isUsableAnalogPin(pin))
+            adcPins.add(pin);
+#if defined(FLIGHTWALL_BOARD_MATRIXPORTAL_S3)
+    doc["lightOnboardPin"] = HardwareConfiguration::LIGHT_ANALOG_PIN;
+#endif
     doc["buttonAPin"] = HardwareConfiguration::BUTTON_A_PIN;
     doc["buttonBPin"] = HardwareConfiguration::BUTTON_B_PIN;
     String out;

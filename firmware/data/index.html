@@ -731,7 +731,9 @@ async function loadStatus(){
         : 'Serving the page <b>built into the firmware</b>. Nothing downloaded yet.';
     }
     if('i2cSda' in s){ const p=$('i2cPins'); if(p) p.textContent = `SDA ${s.i2cSda} / SCL ${s.i2cScl}`; }
-    if('adc1Min' in s){ const a=$('adc1Range'); if(a) a.textContent = `${s.adc1Min}-${s.adc1Max}`; }
+    if('adc1Min' in s){ const a=$('adc1Range'); if(a) a.textContent = Array.isArray(s.adc1Pins)
+      ? s.adc1Pins.join(', ') + ('lightOnboardPin' in s ? ` — ${s.lightOnboardPin} is the onboard sensor` : '')
+      : `${s.adc1Min}-${s.adc1Max}`; }
     if('buttonAPin' in s){ const b=$('btnPins'); if(b) b.textContent = `GPIO ${s.buttonAPin} (A) and GPIO ${s.buttonBPin} (B)`; }
     if('lightLevel' in s && s.lightLevel >= 0){
       const el = $('lightLive');

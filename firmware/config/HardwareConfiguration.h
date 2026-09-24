@@ -143,17 +143,25 @@ namespace HardwareConfiguration
     static const int8_t I2C_SDA = 16;
     static const int8_t I2C_SCL = 17;
 
-    // ANALOG: use the board's broken-out A-pins, and mind which ADC they are on.
-    // Adafruit exposes A0 on a 3-pin JST (jumper-selectable 3V/5V) and A1-A4 on
-    // pads, mapping to GPIO 12, 3, 9, 10, 11 respectively.
+    // ANALOG: the board has its OWN light sensor, and it is the default.
     //
-    // THE CONVENIENT ONE IS THE UNUSABLE ONE. A0 (GPIO 12) and A4 (GPIO 11) are
-    // on ADC2, which cannot be read while WiFi is up -- so the JST connector,
-    // the obvious place to plug a light sensor, is silently useless for analog
-    // on this firmware. A1 (GPIO 3) is ADC1 but a strapping pin. That leaves
-    // A2 (9) and A3 (10) as the only broken-out ADC1 pins, and they are what
-    // the window below advertises.
-    static const uint8_t LIGHT_ANALOG_PIN = 9; // = A2
+    // An ALS-PT19 phototransistor sits on GPIO 5 (ADC1): in Adafruit's
+    // schematic its emitter is net LIGHT -> IO5 with a 10k pull-down to GND, so
+    // the reading RISES with light, which is the direction LightSensor expects.
+    // arduino-esp32's variant for this board names it too (A5 = 5, "Light").
+    // It is on the board, so there is no floating pin to misread when nothing
+    // is wired -- but it faces the back of the panel when the board is plugged
+    // straight in, so it sees the room second-hand. Calibrate before enabling.
+    //
+    // For an LDR you place yourself (on the frame, facing the room), use the
+    // broken-out pads, and mind which ADC they are on. Adafruit exposes A0 on
+    // a 3-pin JST (jumper-selectable 3V/5V) and A1-A4 on pads, mapping to
+    // GPIO 12, 3, 9, 10, 11 respectively. A0 (GPIO 12) and A4 (GPIO 11) are on
+    // ADC2, which cannot be read while WiFi is up -- so the JST connector is
+    // useless for analog on this firmware. A1 (GPIO 3) is ADC1 but a strapping
+    // pin, and A3 (10) is the external button below. That leaves A2 (GPIO 9).
+    static const uint8_t LIGHT_ANALOG_PIN = 5; // onboard ALS-PT19
+    static const uint8_t LIGHT_EXTERNAL_PIN = 9; // = A2, for an external LDR
     static const uint8_t ADC1_PIN_MIN = 1;
     static const uint8_t ADC1_PIN_MAX = 10;
 #elif defined(CONFIG_IDF_TARGET_ESP32S3)
@@ -220,23 +228,34 @@ namespace HardwareConfiguration
     // analogRead() was pointed at an RGB line. On the classic ESP32 the same
     // collision is one pin wide: HUB75_E is 32, the bottom of ADC1's 32-39.
 #if defined(FLIGHTWALL_BOARD_MATRIXPORTAL_S3)
-    // A2 ALONE, and it used to be A2+A3. A3 (GPIO 10) became BUTTON_A_EXT_PIN,
-    // so advertising it here would hand the web UI a pin that pinMode() has
-    // already claimed as an input with a pull-up -- the analog read would then
-    // sample a pin a button can yank to ground.
+    // TWO pins, not a range: the onboard sensor (5) and A2 (9). What lies
+    // between them is the two onboard buttons (6/7) and UART RX (8), so this
+    // board is the one where a contiguous window cannot say what is usable.
+    // The window is only the ENVELOPE the asserts below check; the predicate
+    // under it is what the light sensor and the web UI actually go by.
     //
-    // Narrowed HERE rather than left to the runtime cross-check in
-    // LightSensor::begin(), because a range the UI offers is a promise: the
-    // check catches the mistake after someone makes it, this stops it being
-    // offered at all. Both exist; they are not redundant.
-    static const uint8_t ADC1_FREE_MIN = 9;
+    // A3 (GPIO 10) used to be offered too, until it became BUTTON_A_EXT_PIN:
+    // a pin the UI offers is a promise, so it is withheld here rather than
+    // left to the runtime cross-check in LightSensor::begin(). Both exist;
+    // they are not redundant.
+    static const uint8_t ADC1_FREE_MIN = 5;
     static const uint8_t ADC1_FREE_MAX = 9;
+    constexpr bool isUsableAnalogPin(int pin)
+    {
+        return pin == LIGHT_ANALOG_PIN || pin == LIGHT_EXTERNAL_PIN;
+    }
 #elif defined(CONFIG_IDF_TARGET_ESP32S3)
     static const uint8_t ADC1_FREE_MIN = 1;
     static const uint8_t ADC1_FREE_MAX = 3;
 #else
     static const uint8_t ADC1_FREE_MIN = 33;
     static const uint8_t ADC1_FREE_MAX = 39;
+#endif
+#if !defined(FLIGHTWALL_BOARD_MATRIXPORTAL_S3)
+    constexpr bool isUsableAnalogPin(int pin)
+    {
+        return pin >= ADC1_FREE_MIN && pin <= ADC1_FREE_MAX;
+    }
 #endif
 
     static_assert(ADC1_FREE_MIN >= ADC1_PIN_MIN && ADC1_FREE_MAX <= ADC1_PIN_MAX,
@@ -295,6 +314,36 @@ namespace HardwareConfiguration
     static_assert(!isHub75Pin(LIGHT_ANALOG_PIN), "the default light-sensor pin is a HUB75 line");
     static_assert(LIGHT_ANALOG_PIN >= ADC1_FREE_MIN && LIGHT_ANALOG_PIN <= ADC1_FREE_MAX,
                   "the default light-sensor pin is outside the usable ADC1 window");
+    static_assert(isUsableAnalogPin(LIGHT_ANALOG_PIN),
+                  "the default light-sensor pin is not one the light sensor will accept");
+#if defined(FLIGHTWALL_BOARD_MATRIXPORTAL_S3)
+    // The pins the envelope 5-9 spans but the predicate must refuse.
+    static_assert(!isUsableAnalogPin(BUTTON_A_PIN) && !isUsableAnalogPin(BUTTON_B_PIN),
+                  "an onboard button pin is offered as an analog pin");
+    static_assert(!isUsableAnalogPin(8), "UART RX (GPIO 8) is offered as an analog pin");
+    static_assert(!isHub75Pin(LIGHT_EXTERNAL_PIN) && LIGHT_EXTERNAL_PIN != BUTTON_A_EXT_PIN &&
+                      LIGHT_EXTERNAL_PIN != BUTTON_B_EXT_PIN,
+                  "the external LDR pin collides with the panel or a button");
+#endif
+
+    // Light-sensor defaults, per board. Elsewhere the default is an I2C TCS3472,
+    // enabled, which is safe with nothing attached: its chip-ID check fails and
+    // the panel stays lit. The MatrixPortal's own sensor is always attached, so
+    // "enabled" would act on the first boot -- and at the TCS3472's threshold of
+    // 500 it would call most rooms dark and blank the wall. So it ships OFF, as
+    // Analog on the onboard pin, with thresholds in ADC counts (0-4095) as a
+    // starting point only: tune them against the live reading in the web UI.
+#if defined(FLIGHTWALL_BOARD_MATRIXPORTAL_S3)
+    static const bool LIGHT_DEFAULT_ENABLED = false;
+    static const bool LIGHT_DEFAULT_ANALOG = true;
+    static const uint16_t LIGHT_DEFAULT_DARK_THRESHOLD = 40;
+    static const uint16_t LIGHT_DEFAULT_HYSTERESIS = 40;
+#else
+    static const bool LIGHT_DEFAULT_ENABLED = true;
+    static const bool LIGHT_DEFAULT_ANALOG = false;
+    static const uint16_t LIGHT_DEFAULT_DARK_THRESHOLD = 500;
+    static const uint16_t LIGHT_DEFAULT_HYSTERESIS = 150;
+#endif
 
     // Default panel geometry (overridable at runtime from the web UI / Settings).
     static const uint16_t PANEL_RES_X = 64; // pixels wide per panel module
