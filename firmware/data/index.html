@@ -349,19 +349,21 @@
     <small class="help" id="lightLive">Live reading appears here when enabled — set the threshold just above the dark value. The units depend on the sensor type, so tune against this number rather than guessing.</small>
 
     <div class="sec">HUB75 panel</div>
-    <small class="help" style="color:var(--warn)">⚠ These must match your panel hardware. Wrong values can blank or scramble the display. Defaults suit a 128×64 panel.</small>
+    <small class="help" style="color:var(--warn)">⚠ These must match your panel hardware. Wrong values can blank or scramble the display. The MatrixPortal S3 4×1 build defaults to 256×64 (four 64×64 panels).</small>
     <label>Presets</label>
     <div class="bar">
       <button class="ghost" type="button" onclick="setPanel(64,32,1)">64×32</button>
       <button class="ghost" type="button" onclick="setPanel(64,64,1)">64×64</button>
       <button class="ghost" type="button" onclick="setPanel(64,64,2)">128×64 (Mini)</button>
+      <button class="ghost" type="button" onclick="setPanel(64,64,4)">256×64 (4×1)</button>
     </div>
     <div class="row" style="margin-top:8px">
       <div><label>Panel width (px)</label><input id="panelResX" type="number" /></div>
       <div><label>Panel height (px)</label><input id="panelResY" type="number" /></div>
       <div><label>Panels chained</label><input id="panelChain" type="number" min="1" /></div>
     </div>
-    <small class="help">Matrix width = panel width × panels chained (e.g. 64 × 2 = 128 wide). Wide panels use a logo-left card; square panels (64×64) use a stacked logo-on-top card. Changes take effect after a restart.</small>
+    <span class="check"><input type="checkbox" id="panelRotate180"><label>Rotate 180° (board feeds the left-most panel, seen from the front)</label></span>
+    <small class="help">Matrix width = panel width × panels chained (e.g. 64 × 4 = 256 wide). 192×64 and wider use a large-type card with a full-height logo; 128×64 uses the Mini card; other wide panels a logo-left card; square panels (64×64) a stacked logo-on-top card. Changes take effect after a restart.</small>
 
     <label style="margin-top:14px">Signal tuning — if pixels flicker or shift by one</label>
     <span class="check" style="margin-top:0"><input type="checkbox" id="panelClkPhase"><label>Clock phase (uncheck first to fix an off-by-one shift)</label></span>
@@ -518,6 +520,7 @@ async function loadSettings(){
   $('panelResX').value = s.hardware.panelResX;
   $('panelResY').value = s.hardware.panelResY;
   $('panelChain').value = s.hardware.panelChain;
+  $('panelRotate180').checked = s.hardware.panelRotate180 === true;
   $('panelClkPhase').checked = s.hardware.panelClkPhase !== false;
   selectValue('panelDriverChip', s.hardware.panelDriverChip || 'shift', 'Stored');
   selectValue('panelI2sSpeedMhz', s.hardware.panelI2sSpeedMhz || 8, 'Stored');
@@ -576,6 +579,7 @@ function collect(){
       dimInstead:$('lightSensorDimInstead').checked, dimBrightness:+$('lightDimBrightness').value
     },
     hardware:{ panelResX:+$('panelResX').value, panelResY:+$('panelResY').value, panelChain:+$('panelChain').value,
+      panelRotate180:$('panelRotate180').checked,
       panelClkPhase:$('panelClkPhase').checked, panelDriverChip:$('panelDriverChip').value,
       panelI2sSpeedMhz:+$('panelI2sSpeedMhz').value, panelLatchBlanking:+$('panelLatchBlanking').value }
   };

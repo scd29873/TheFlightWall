@@ -106,6 +106,11 @@ bool Hub75Display::initialize()
         mxconfig.driver = HUB75_I2S_CFG::MBI5124;
     else
         mxconfig.driver = HUB75_I2S_CFG::SHIFTREG;
+#ifdef FW_HUB75_MIN_REFRESH_HZ
+    // Set by wide-chain envs only; see [env:matrixportal_s3_4x1] in platformio.ini.
+    // The library meets it by trading low colour bits (lsbMsbTransitionBit).
+    mxconfig.min_refresh_rate = FW_HUB75_MIN_REFRESH_HZ;
+#endif
 
     // [heapdiag] Measure how much the HUB75 DMA framebuffer reserves — prime
     // suspect for the contiguous-internal-RAM shortage that breaks TLS handshakes.
@@ -116,7 +121,17 @@ bool Hub75Display::initialize()
     // available to child classes, per its own comment. Every construction of
     // _panel must use this type; startOutput() downcasts on that promise.
     _panel = new RestartablePanel(mxconfig);
-    _panel->begin();
+    if (!_panel->begin())
+        Serial.println("[hub75] begin() FAILED -- DMA allocation? The panel will stay dark");
+    Serial.printf("[hub75] %ux%u (%u x %ux%u), refresh ~%d Hz\n",
+                  _matrixWidth, _matrixHeight, (unsigned)g_settings.panelChain,
+                  (unsigned)g_settings.panelResX, (unsigned)g_settings.panelResY,
+                  _panel->calculated_refresh_rate);
+    // The library applies GFX rotation in its own drawPixel, so present()'s blit
+    // turns with it and nothing else here has to know. 2 = 180 degrees, which
+    // keeps width and height as they are.
+    if (g_settings.panelRotate180)
+        _panel->setRotation(2);
     size_t intAfterPanel = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
     size_t dmaAfterPanel = heap_caps_get_free_size(MALLOC_CAP_DMA);
     Serial.printf("[heapdiag] HUB75 panel: internal used ~%u (free %u->%u), DMA used ~%u (free %u->%u), largestInternal=%u\n",

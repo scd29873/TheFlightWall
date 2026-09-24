@@ -346,7 +346,21 @@ namespace HardwareConfiguration
 #endif
 
     // Default panel geometry (overridable at runtime from the web UI / Settings).
-    static const uint16_t PANEL_RES_X = 64; // pixels wide per panel module
-    static const uint16_t PANEL_RES_Y = 64; // pixels high per panel module
-    static const uint8_t PANEL_CHAIN = 2;   // number of panels chained -> 128x64 total
+    // A build env can set its own with -DFW_PANEL_RES_X/-DFW_PANEL_RES_Y/
+    // -DFW_PANEL_CHAIN, which is how matrixportal_s3_4x1 comes up as 256x64
+    // on a fresh board. These only seed first boot: a saved geometry wins.
+#ifndef FW_PANEL_RES_X
+#define FW_PANEL_RES_X 64
+#endif
+#ifndef FW_PANEL_RES_Y
+#define FW_PANEL_RES_Y 64
+#endif
+#ifndef FW_PANEL_CHAIN
+#define FW_PANEL_CHAIN 2
+#endif
+    static const uint16_t PANEL_RES_X = FW_PANEL_RES_X; // pixels wide per panel module
+    static const uint16_t PANEL_RES_Y = FW_PANEL_RES_Y; // pixels high per panel module
+    static const uint8_t PANEL_CHAIN = FW_PANEL_CHAIN;  // panels chained -> width = RES_X * CHAIN
+    static_assert(PANEL_CHAIN >= 1 && PANEL_RES_X >= 8 && PANEL_RES_Y >= 8,
+                  "default panel geometry is degenerate");
 }

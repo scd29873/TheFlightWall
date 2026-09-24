@@ -149,7 +149,7 @@ const SETTINGS = {
   light: { enabled: true, type: 'tcs3472', pin: 1, darkThreshold: 500, dimBrightness: 5, dimInstead: true, hysteresis: 30 },
   buttons: { enabled: true },
   hardware: {
-    panelResX: 64, panelResY: 64, panelChain: 2, panelClkPhase: true,
+    panelResX: 64, panelResY: 64, panelChain: 2, panelRotate180: false, panelClkPhase: true,
     panelDriverChip: 'shift', panelI2sSpeedMhz: 8, panelLatchBlanking: 1,
   },
 };

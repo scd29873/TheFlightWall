@@ -216,6 +216,11 @@ struct Settings
     uint16_t panelResX = HardwareConfiguration::PANEL_RES_X; // pixels wide per panel module
     uint16_t panelResY = HardwareConfiguration::PANEL_RES_Y; // pixels high per panel module
     uint8_t panelChain = HardwareConfiguration::PANEL_CHAIN;  // panels chained -> matrix width = panelResX * panelChain
+    // Turn the whole picture 180 degrees. The chain fixes which end is which: the
+    // panel the board feeds shows the RIGHT-most columns (seen from the front),
+    // so a row mounted with that panel at the left -- every panel upside down --
+    // needs this. Applied on restart, like the geometry.
+    bool panelRotate180 = false;
 
     // HUB75 signal-integrity tuning (try these if pixels flicker / shift by one):
     bool panelClkPhase = false;       // default off — fixes the off-by-one pixel shift on most panels

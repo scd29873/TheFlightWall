@@ -308,6 +308,7 @@ String Settings::serialize(bool redactSecrets) const
     hw["panelResX"] = panelResX;
     hw["panelResY"] = panelResY;
     hw["panelChain"] = panelChain;
+    hw["panelRotate180"] = panelRotate180;
     hw["panelClkPhase"] = panelClkPhase;
     hw["panelI2sSpeedMhz"] = panelI2sSpeedMhz;
     hw["panelLatchBlanking"] = panelLatchBlanking;
@@ -514,6 +515,8 @@ bool Settings::fromJson(const String &in)
             panelResY = hw["panelResY"].as<uint16_t>();
         if (hw.containsKey("panelChain"))
             panelChain = hw["panelChain"].as<uint8_t>();
+        if (hw.containsKey("panelRotate180"))
+            panelRotate180 = hw["panelRotate180"].as<bool>();
         if (hw.containsKey("panelClkPhase"))
             panelClkPhase = hw["panelClkPhase"].as<bool>();
         if (hw.containsKey("panelI2sSpeedMhz"))

@@ -99,6 +99,9 @@ fi
 TARGET="$(basename "$(dirname "$BIN")")"
 case "$TARGET" in
   esp32dev|esp32s3|matrixportal_s3) ;;
+  # Same board and pin map as matrixportal_s3 -- the env differs only in the
+  # panel geometry it seeds -- and that is the target the device reports.
+  matrixportal_s3_4x1) TARGET=matrixportal_s3 ;;
   *)
     echo "unrecognised build target '$TARGET' derived from $BIN" >&2
     echo "expected the image at firmware/.pio/build/<env>/firmware.bin" >&2
