@@ -146,19 +146,19 @@ struct Settings
     // Stored without a trailing slash (normalised on load). Empty means the
     // server source is unusable and the fetcher falls back to AdsbLol.
     //
-    // DEFAULTED, with positionSource below, so a freshly flashed board reaches
-    // the server without being configured by hand. A device that comes up on
-    // OpenSky instead is not merely different, it is the HEAVY path: 1 + up to
-    // 2*maxFlights TLS connections per cycle against this source's one. On a
-    // board whose radio has repeatedly proven marginal, defaulting to the cheap
-    // path is worth more than defaulting to the neutral one.
-    String serverUrl = "https://flightwall.tinkerex.com";
+    // EMPTY by default in this fork. Upstream defaulted it to the upstream
+    // maintainer's own server, which meant a freshly flashed wall sent its
+    // location to a third party every cycle and fetched logos from it. Deploy
+    // your own (server/README.md) and enter its URL in the web UI to use it.
+    String serverUrl = "";
 
     // ---- Position source (Area mode) ----
-    // Pairs with serverUrl above. Safe as a default because it degrades rather
-    // than fails: FlightDataFetcher::fetchServerMode falls back to AdsbLol on
-    // any failure, so a device that cannot reach the server still shows flights.
-    PositionSource positionSource = PositionSource::FlightWallServer;
+    // OpenSky, the free source the README documents as the default: it needs
+    // an OAuth client id/secret, entered in the web UI. Note the cost upstream
+    // defaulted to the server to avoid: 1 + up to 2*maxFlights TLS connections
+    // per cycle on a cold cache (enrichment is then cached per flight leg), on a
+    // radio the panel is known to degrade -- see HANDOFF.md.
+    PositionSource positionSource = PositionSource::OpenSky;
 
     // ---- Flight enrichment (route/airline/aircraft) ----
     EnrichmentSource enrichmentSource = EnrichmentSource::Adsbdb;
