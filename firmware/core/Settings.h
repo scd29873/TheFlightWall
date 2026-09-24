@@ -19,6 +19,7 @@ Flow:
 #include "config/HardwareConfiguration.h" // board-guarded pins + panel geometry
 #include "config/UserConfiguration.h"     // location, brightness, colours, carousel size
 #include "config/TimingConfiguration.h"   // fetch cadence + display cycle
+#include "utils/UnitFormat.h"               // per-quantity display units
 
 // The initialisers below are THE defaults. seedDefaults() resets to them via
 // `*this = Settings()` and then overlays only the five credentials that live in
@@ -77,6 +78,16 @@ enum class LightSensorType : uint8_t
 // lux, or raw Clear counts respectively. They are not interchangeable, and the 500
 // default only ever made sense for Analog (500 lux is a lit office). Tune it against
 // the live `lightLevel` in /api/status rather than by reasoning about the number.
+
+// Which unit each quantity is shown in, chosen separately in the web UI.
+// Values stay in aviation units everywhere else; see utils/UnitFormat.h.
+struct DisplayUnits
+{
+    AltitudeUnit altitude = AltitudeUnit::Feet;
+    SpeedUnit speed = SpeedUnit::Mph;
+    ClimbUnit climb = ClimbUnit::FeetPerSec;
+    DistanceUnit distance = DistanceUnit::Km;
+};
 
 // Which fields are rendered on each flight card, in order. Toggled from web UI.
 struct DisplayLayout
@@ -185,6 +196,7 @@ struct Settings
     uint32_t fetchIntervalSeconds = TimingConfiguration::FETCH_INTERVAL_SECONDS;
 
     DisplayLayout layout;
+    DisplayUnits units;
     AircraftFilters filters;
     BrightnessSchedule schedule;
 

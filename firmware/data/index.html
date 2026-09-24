@@ -147,7 +147,7 @@
       <div class="row">
         <div><label>Center latitude</label><input id="centerLat" type="number" step="0.0001" /></div>
         <div><label>Center longitude</label><input id="centerLon" type="number" step="0.0001" /></div>
-        <div><label>Radius (km)</label><input id="radiusKm" type="number" step="0.5" /></div>
+        <div><label>Radius (<span class="uDist">km</span>)</label><input id="radiusKm" type="number" step="0.5" /></div>
       </div>
       <div class="bar" style="margin-top:10px">
         <button class="ghost" type="button" onclick="geolocate()">Auto-detect my location</button>
@@ -163,8 +163,8 @@
 
     <div class="sec">Filters</div>
     <div class="row">
-      <div><label>Min altitude (ft)</label><input id="minAltitudeFt" type="number" /></div>
-      <div><label>Max altitude (ft)</label><input id="maxAltitudeFt" type="number" /></div>
+      <div><label>Min altitude (<span class="uAlt">ft</span>)</label><input id="minAltitudeFt" type="number" /></div>
+      <div><label>Max altitude (<span class="uAlt">ft</span>)</label><input id="maxAltitudeFt" type="number" /></div>
     </div>
     <span class="check"><input type="checkbox" id="excludeOnGround"><label>Hide aircraft on the ground</label></span>
     <span class="check"><input type="checkbox" id="showGeneralAviation"><label>Show general aviation / private flights</label></span>
@@ -256,6 +256,19 @@
       <span class="check"><input type="checkbox" id="flightNumberOverVr"><label>Flight # (instead of vertical rate)</label></span>
     </div>
     <small class="help">Only as many lines as physically fit on the panel are drawn. ETA needs the FlightWall server position source above (or a server flight with a resolved destination) — it renders blank otherwise, same as an unfilled route.</small>
+
+    <div class="sec">Units</div>
+    <div class="row">
+      <div><label>Altitude</label>
+        <select id="unitAltitude" onchange="unitsChanged()"><option value="ft">feet</option><option value="m">metres</option></select></div>
+      <div><label>Speed</label>
+        <select id="unitSpeed" onchange="unitsChanged()"><option value="kt">knots</option><option value="mph" selected>mph</option><option value="kmh">km/h</option></select></div>
+      <div><label>Climb rate</label>
+        <select id="unitClimb" onchange="unitsChanged()"><option value="fpm">ft/min</option><option value="fps" selected>ft/s</option><option value="mps">m/s</option></select></div>
+      <div><label>Distance</label>
+        <select id="unitDistance" onchange="unitsChanged()"><option value="km">km</option><option value="mi">miles</option><option value="nm">nautical miles</option></select></div>
+    </div>
+    <small class="help">Each one is separate. They apply to the wall, the flight list, and the altitude and radius boxes on this page. The device stores feet and kilometres whichever you pick, so switching back and forth loses nothing.</small>
 
     <div class="sec">Clock</div>
     <label>Time zone</label>
@@ -455,6 +468,53 @@ function toggleServerUrl(){
   $('serverUrlBox').classList.toggle('hide', $('positionSource').value !== 'server');
 }
 
+// Display units, mirroring firmware/utils/UnitFormat.h. The device keeps feet,
+// knots, ft/min and km whatever is picked; everything here only converts what
+// the page shows, and converts the two unit-bearing boxes back before saving.
+const ALT_F = { ft:1, m:0.3048 };
+const DIST_F = { km:1, mi:1/1.609344, nm:1/1.852 };
+let shownAlt = 'ft', shownDist = 'km'; // the units those boxes currently hold
+const altToShown = ft => Math.round(ft * ALT_F[shownAlt]);
+const altFromShown = v => Math.round(v / ALT_F[shownAlt]);
+const distToShown = km => +(km * DIST_F[shownDist]).toFixed(1);
+const distFromShown = v => v / DIST_F[shownDist];
+// A converted box must not drift a value nobody edited: a stored 10 km shows
+// as 6.2 mi, which would otherwise save back as 9.98 km. So each box remembers
+// the stored value it was filled from, and hands that back while it still
+// reads the same.
+const stored = { radiusKm:null, minAltitudeFt:null, maxAltitudeFt:null };
+function showStored(id, v, toShown){ stored[id] = v; $(id).value = toShown(v); }
+function readStored(id, toShown, fromShown){
+  const v = parseFloat($(id).value);
+  return (stored[id] !== null && v === toShown(stored[id])) ? stored[id] : fromShown(v);
+}
+function unitLabels(){
+  document.querySelectorAll('.uAlt').forEach(e => e.textContent = shownAlt);
+  document.querySelectorAll('.uDist').forEach(e => e.textContent = shownDist);
+}
+// Re-express what is already typed in the boxes, so switching units never
+// changes the stored value -- only how it reads.
+function unitsChanged(){
+  const minFt = readStored('minAltitudeFt', altToShown, altFromShown);
+  const maxFt = readStored('maxAltitudeFt', altToShown, altFromShown);
+  const km = readStored('radiusKm', distToShown, distFromShown);
+  shownAlt = $('unitAltitude').value; shownDist = $('unitDistance').value;
+  if(!isNaN(minFt)) showStored('minAltitudeFt', minFt, altToShown);
+  if(!isNaN(maxFt)) showStored('maxAltitudeFt', maxFt, altToShown);
+  if(!isNaN(km)) showStored('radiusKm', km, distToShown);
+  unitLabels();
+}
+function fmtAlt(ft){ return $('unitAltitude').value === 'm' ? Math.round(ft * 0.03048) * 10 + 'm' : ft + 'ft'; }
+function fmtSpeed(kt){
+  const u = $('unitSpeed').value;
+  return u === 'kt' ? kt + 'kt' : u === 'kmh' ? Math.round(kt * 1.852) + 'km/h' : Math.round(kt * 1.15078) + 'mph';
+}
+function fmtClimb(fpm){
+  const u = $('unitClimb').value;
+  return u === 'fpm' ? fpm + 'fpm' : u === 'mps' ? (fpm * 0.00508).toFixed(1) + 'm/s' : Math.round(fpm / 60) + 'ft/s';
+}
+function fmtDist(km){ const u = $('unitDistance').value; return (km * DIST_F[u]).toFixed(1) + u; }
+
 async function loadSettings(){
   const s = await (await fetch('/api/settings')).json();
   $('wifiSsid').value = s.network.wifiSsid || '';
@@ -479,7 +539,14 @@ async function loadSettings(){
   $('mode').value = s.tracking.mode;
   $('centerLat').value = s.tracking.centerLat;
   $('centerLon').value = s.tracking.centerLon;
-  $('radiusKm').value = s.tracking.radiusKm;
+  // Units before the boxes that are shown in them.
+  const u = s.units || {};
+  selectValue('unitAltitude', u.altitude || 'ft', 'Stored');
+  selectValue('unitSpeed', u.speed || 'mph', 'Stored');
+  selectValue('unitClimb', u.climb || 'fps', 'Stored');
+  selectValue('unitDistance', u.distance || 'km', 'Stored');
+  shownAlt = $('unitAltitude').value; shownDist = $('unitDistance').value; unitLabels();
+  showStored('radiusKm', s.tracking.radiusKm, distToShown);
   $('autoLocateOnBoot').checked = !!s.tracking.autoLocateOnBoot;
   $('trackedFlights').value = (s.tracking.trackedFlights || []).join('\n');
 
@@ -493,8 +560,8 @@ async function loadSettings(){
     $(k).checked = !!s.layout[k];
   selectValue('noFlightsMode', s.layout.noFlightsMode || 'dots', 'Stored');
 
-  $('minAltitudeFt').value = s.filters.minAltitudeFt;
-  $('maxAltitudeFt').value = s.filters.maxAltitudeFt;
+  showStored('minAltitudeFt', s.filters.minAltitudeFt, altToShown);
+  showStored('maxAltitudeFt', s.filters.maxAltitudeFt, altToShown);
   $('excludeOnGround').checked = !!s.filters.excludeOnGround;
   $('showGeneralAviation').checked = !!s.filters.showGeneralAviation;
   $('hideCargo').checked = !!s.filters.hideCargo;
@@ -551,7 +618,7 @@ function collect(){
     tracking:{
       mode:$('mode').value,
       centerLat:parseFloat($('centerLat').value), centerLon:parseFloat($('centerLon').value),
-      radiusKm:parseFloat($('radiusKm').value),
+      radiusKm:readStored('radiusKm', distToShown, distFromShown),
       autoLocateOnBoot:$('autoLocateOnBoot').checked,
       trackedFlights:lines($('trackedFlights').value)
     },
@@ -560,9 +627,10 @@ function collect(){
       maxFlights:+$('maxFlights').value, cycleSeconds:+$('cycleSeconds').value,
       fetchIntervalSeconds:+$('fetchIntervalSeconds').value
     },
+    units:{ altitude:$('unitAltitude').value, speed:$('unitSpeed').value, climb:$('unitClimb').value, distance:$('unitDistance').value },
     layout:Object.assign(Object.fromEntries(['showAirlineFlight','showRoute','showEta','showAircraft','showAltitude','showSpeed','showHeading','showVerticalRate','flightNumberOverVr'].map(k=>[k,$(k).checked])), {noFlightsMode:$('noFlightsMode').value}),
     filters:{
-      minAltitudeFt:+$('minAltitudeFt').value, maxAltitudeFt:+$('maxAltitudeFt').value,
+      minAltitudeFt:readStored('minAltitudeFt', altToShown, altFromShown), maxAltitudeFt:readStored('maxAltitudeFt', altToShown, altFromShown),
       excludeOnGround:$('excludeOnGround').checked,
       showGeneralAviation:$('showGeneralAviation').checked, hideCargo:$('hideCargo').checked,
       airlineAllowList:lines($('airlineAllowList').value),
@@ -753,9 +821,9 @@ async function loadStatus(){
     const f = await (await fetch('/api/flights')).json();
     $('flights').innerHTML = f.map(x=>{
       // Distance leads: the list is ordered nearest-first, so it reads as the sort key.
-      const m=[]; if('distanceKm'in x)m.push(x.distanceKm.toFixed(1)+'km');
-      if('altitudeFt'in x)m.push(x.altitudeFt+'ft'); if('speedKt'in x)m.push(x.speedKt+'kt');
-      if('headingDeg'in x)m.push('HDG'+x.headingDeg); if('verticalRateFpm'in x)m.push(x.verticalRateFpm+'fpm');
+      const m=[]; if('distanceKm'in x)m.push(fmtDist(x.distanceKm));
+      if('altitudeFt'in x)m.push(fmtAlt(x.altitudeFt)); if('speedKt'in x)m.push(fmtSpeed(x.speedKt));
+      if('headingDeg'in x)m.push('HDG'+x.headingDeg); if('verticalRateFpm'in x)m.push(fmtClimb(x.verticalRateFpm));
       // Server-sourced only (empty/omitted for OpenSky/adsb.lol and any server
       // flight with no destination) -- verbatim, same rule as the panel.
       if('etaText'in x)m.push('ETA '+esc(x.etaText));

@@ -160,5 +160,17 @@ int main(int argc, char **argv)
     d.markFlightsUpdated();
     d.displayFlights(none);
     dump("08-funfact");
+
+    // Units: metres, km/h and m/s, as a metric wall shows them -- the kind of
+    // flight a receiver in Christchurch hears climbing out.
+    g_settings.units.altitude = AltitudeUnit::Metres;
+    g_settings.units.speed = SpeedUnit::Kmh;
+    g_settings.units.climb = ClimbUnit::MetresPerSec;
+    FlightInfo anz = airliner("NZ512", "ANZ", "NZ", "Air New Zealand", "CHC", "AKL", "A20N");
+    anz.altitude_ft = 12000;
+    anz.groundspeed_kt = 281;
+    anz.heading_deg = 35;
+    anz.vertical_rate_fpm = 1600;
+    card(d, "09-metric", anz);
     return 0;
 }

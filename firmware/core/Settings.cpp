@@ -271,6 +271,12 @@ String Settings::serialize(bool redactSecrets) const
     lay["flightNumberOverVr"] = layout.flightNumberOverVr;
     lay["noFlightsMode"] = layout.noFlightsMode;
 
+    JsonObject un = doc.createNestedObject("units");
+    un["altitude"] = unitName(units.altitude);
+    un["speed"] = unitName(units.speed);
+    un["climb"] = unitName(units.climb);
+    un["distance"] = unitName(units.distance);
+
     JsonObject filt = doc.createNestedObject("filters");
     filt["minAltitudeFt"] = filters.minAltitudeFt;
     filt["maxAltitudeFt"] = filters.maxAltitudeFt;
@@ -442,6 +448,19 @@ bool Settings::fromJson(const String &in)
         layout.flightNumberOverVr = lay["flightNumberOverVr"] | layout.flightNumberOverVr;
         if (lay.containsKey("noFlightsMode"))
             layout.noFlightsMode = lay["noFlightsMode"].as<String>();
+    }
+
+    if (doc.containsKey("units"))
+    {
+        JsonObject un = doc["units"];
+        if (un.containsKey("altitude"))
+            units.altitude = altitudeUnitFromName(un["altitude"].as<const char *>());
+        if (un.containsKey("speed"))
+            units.speed = speedUnitFromName(un["speed"].as<const char *>());
+        if (un.containsKey("climb"))
+            units.climb = climbUnitFromName(un["climb"].as<const char *>());
+        if (un.containsKey("distance"))
+            units.distance = distanceUnitFromName(un["distance"].as<const char *>());
     }
 
     if (doc.containsKey("filters"))

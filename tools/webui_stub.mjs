@@ -142,6 +142,7 @@ const SETTINGS = {
     textColorR: 255, textColorG: 255, textColorB: 255,
   },
   layout: { noFlightsMode: 'clockfact' },
+  units: { altitude: 'ft', speed: 'mph', climb: 'fps', distance: 'km' },
   schedule: {
     enabled: true, timezone: 'EST5EDT,M3.2.0,M11.1.0', dayBrightness: 20,
     nightBrightness: 5, nightStartHour: 23, nightEndHour: 7,

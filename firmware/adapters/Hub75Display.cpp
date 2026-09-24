@@ -22,6 +22,7 @@ Inputs: FlightInfo list; g_settings (colors/brightness/layout/cycle/geometry).
 #include "utils/ProgressBar.h" // progressFillPixels()
 #include "core/Settings.h"
 #include "utils/ClockFormat.h"
+#include "utils/UnitFormat.h" // formatAltitudeLine(), formatSpeed(), ...
 
 // How long each fun fact stays up / how long the clock<->fact alternation holds,
 // in milliseconds. Reused as the clock recompose granularity is per-minute.
@@ -248,14 +249,15 @@ String Hub75Display::truncateToColumns(const String &text, int maxColumns)
     return text.substring(0, maxColumns - 3) + String("...");
 }
 
+// Units for every formatter below come from Settings::units -- one choice per
+// quantity, applied on every layout. The text itself is built by the host-tested
+// helpers in utils/UnitFormat.h.
 static String formatAltitude(double altFt)
 {
     if (!renderable(altFt))
         return String("");
-    long ft = (long)(altFt + 0.5);
-    if (ft >= 18000)
-        return String("FL") + String((long)((ft + 50) / 100));
-    return String(ft) + "ft";
+    char b[32];
+    return String(formatAltitudeLine(b, sizeof(b), altFt, g_settings.units.altitude));
 }
 
 static String formatHeading(double deg)
@@ -291,8 +293,8 @@ static String formatVerticalRate(double fpm)
         return String("");
     if (isDirectionOnlyRate(fpm))
         return directionOnlyRate(fpm);
-    long v = (long)(fpm + (fpm >= 0 ? 0.5 : -0.5));
-    return String(v > 0 ? "+" : "") + String(v) + "fpm";
+    char b[32];
+    return String(formatClimb(b, sizeof(b), fpm, g_settings.units.climb, true, /*plus=*/true));
 }
 
 void Hub75Display::buildFlightLines(const FlightInfo &f, std::vector<String> &outLines, bool includeAirline)
@@ -348,7 +350,10 @@ void Hub75Display::buildFlightLines(const FlightInfo &f, std::vector<String> &ou
     }
 
     if (L.showSpeed && renderable(f.groundspeed_kt))
-        outLines.push_back(String((long)(f.groundspeed_kt + 0.5)) + "kt");
+    {
+        char b[32];
+        outLines.push_back(String(formatSpeed(b, sizeof(b), f.groundspeed_kt, g_settings.units.speed, true)));
+    }
 
     if (L.showHeading)
     {
@@ -783,20 +788,16 @@ static String miniAlt(double ft, bool unit)
 {
     if (!renderable(ft))
         return String("");
-    if (ft >= 1000)
-    {
-        char b[12];
-        snprintf(b, sizeof(b), unit ? "%.1fkft" : "%.1fk", ft / 1000.0);
-        return String(b);
-    }
-    return String((long)(ft + 0.5)) + (unit ? "ft" : "");
+    char b[32];
+    return String(formatAltitudeCompact(b, sizeof(b), ft, g_settings.units.altitude, unit));
 }
 
-static String miniSpdMph(double kt, bool unit)
+static String miniSpd(double kt, bool unit)
 {
     if (!renderable(kt))
         return String("");
-    return String((long)(kt * 1.15078 + 0.5)) + (unit ? "mph" : "");
+    char b[32];
+    return String(formatSpeed(b, sizeof(b), kt, g_settings.units.speed, unit));
 }
 
 static String miniTrk(double deg, bool unit)
@@ -820,8 +821,8 @@ static String miniVr(double fpm, bool unit)
     // code: one rule, two encodings, one of them wrong.
     if (isDirectionOnlyRate(fpm))
         return directionOnlyRate(fpm);
-    long fps = (long)(fpm / 60.0 + (fpm >= 0 ? 0.5 : -0.5));
-    return String(fps) + (unit ? "ft/s" : "");
+    char b[32];
+    return String(formatClimb(b, sizeof(b), fpm, g_settings.units.climb, unit, /*plus=*/false));
 }
 
 // Small per-airline display-name fixups (spacing / branding). Extend as needed —
@@ -1144,7 +1145,7 @@ String Hub75Display::metricRow1(const FlightInfo &f, int cols)
         }
         if (L.showSpeed)
         {
-            String s = miniSpdMph(f.groundspeed_kt, unit);
+            String s = miniSpd(f.groundspeed_kt, unit);
             if (s.length())
                 r += (r.length() ? " " : "") + String("Spd:") + s;
         }
