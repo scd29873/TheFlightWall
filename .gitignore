@@ -25,3 +25,7 @@ __pycache__/
 # Signed firmware artifacts produced by tools/sign_firmware.sh -- never committed:
 # these are build outputs, and the .bin is 1.2MB.
 /dist/
+
+# Host preview renders and its cached Adafruit GFX checkout (tools/panel_preview/run.sh)
+tools/panel_preview/out/
+tools/panel_preview/.cache/
