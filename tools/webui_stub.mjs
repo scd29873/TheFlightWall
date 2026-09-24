@@ -125,7 +125,7 @@ const SETTINGS = {
   api: {
     openSkyClientId: 'osky-id', openSkyClientSecretSet: true, aeroApiKeySet: false,
     controlTokenSet: false,
-    positionSource: 'server', serverUrl: 'https://flightwall.example',
+    positionSource: 'server', serverUrl: 'https://flightwall.example', receiverUrl: '',
     enrichmentSource: 'adsbdb', enrichmentFallbackToAeroApi: false,
     enrichmentCacheSeconds: 600,
   },

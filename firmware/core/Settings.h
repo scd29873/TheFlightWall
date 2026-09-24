@@ -65,6 +65,11 @@ enum class PositionSource : uint8_t
                           // ETA maths and returns a display-ready list. One HTTP
                           // call per cycle instead of up to 1 + 2*maxFlights.
                           // Needs serverUrl; falls back to AdsbLol if unreachable.
+    LocalReceiver = 4,    // your own receiver on the LAN: dump1090-fa (PiAware),
+                          // readsb or dump1090, read from its aircraft.json.
+                          // Plain HTTP, no key, no rate limit, and only what YOUR
+                          // antenna hears. Carries no route -- enrichment runs as
+                          // for OpenSky. Needs receiverUrl.
 };
 
 enum class LightSensorType : uint8_t
@@ -162,6 +167,13 @@ struct Settings
     // location to a third party every cycle and fetched logos from it. Deploy
     // your own (server/README.md) and enter its URL in the web UI to use it.
     String serverUrl = "";
+
+    // Where the LocalReceiver source reads from. A full aircraft.json URL, or
+    // just the receiver's address -- "192.168.1.50", "piaware.local:8080" --
+    // in which case LocalReceiverFetcher tries the paths the common receiver
+    // packages serve it at. Normalised on load: "http://" added when no scheme
+    // is given, trailing slash dropped.
+    String receiverUrl = "";
 
     // ---- Position source (Area mode) ----
     // OpenSky, the free source the README documents as the default: it needs

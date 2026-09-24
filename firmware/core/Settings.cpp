@@ -58,6 +58,7 @@ static const char *positionSourceToString(PositionSource s)
     case PositionSource::FlightRadar24:    return "fr24";
     case PositionSource::AdsbLol:          return "adsblol";
     case PositionSource::FlightWallServer: return "server";
+    case PositionSource::LocalReceiver:    return "local";
     case PositionSource::OpenSky:          return "opensky";
     }
     return "opensky";
@@ -68,6 +69,7 @@ static PositionSource positionSourceFromString(const String &s)
     if (s == "fr24")    return PositionSource::FlightRadar24;
     if (s == "adsblol") return PositionSource::AdsbLol;
     if (s == "server")  return PositionSource::FlightWallServer;
+    if (s == "local")   return PositionSource::LocalReceiver;
     return PositionSource::OpenSky;
 }
 
@@ -234,6 +236,7 @@ String Settings::serialize(bool redactSecrets) const
     }
     api["positionSource"] = positionSourceToString(positionSource);
     api["serverUrl"] = serverUrl;
+    api["receiverUrl"] = receiverUrl;
     api["enrichmentSource"] = (enrichmentSource == EnrichmentSource::AeroApi) ? "aeroapi"
                               : (enrichmentSource == EnrichmentSource::Off) ? "off"
                                                                             : "adsbdb";
@@ -384,6 +387,17 @@ bool Settings::fromJson(const String &in)
             // here rather than defensively at the call site.
             while (serverUrl.endsWith("/"))
                 serverUrl.remove(serverUrl.length() - 1);
+        }
+        if (api.containsKey("receiverUrl"))
+        {
+            receiverUrl = api["receiverUrl"].as<String>();
+            receiverUrl.trim();
+            // An address typed the way people type it -- "192.168.1.50:8080" --
+            // has no scheme, and HTTPClient needs one.
+            if (receiverUrl.length() && receiverUrl.indexOf("://") < 0)
+                receiverUrl = "http://" + receiverUrl;
+            while (receiverUrl.endsWith("/"))
+                receiverUrl.remove(receiverUrl.length() - 1);
         }
         if (api.containsKey("enrichmentSource"))
         {

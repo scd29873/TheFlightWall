@@ -106,6 +106,12 @@ public:
                 return false;
         return true;
     }
+    void remove(unsigned int index) { if (index < _s.size()) _s.erase(index); }
+    void remove(unsigned int index, unsigned int count)
+    {
+        if (index < _s.size())
+            _s.erase(index, count);
+    }
     void toUpperCase()
     {
         for (auto &c : _s)
@@ -127,6 +133,23 @@ public:
         _s = _s.substr(a, _s.find_last_not_of(" \t\r\n") - a + 1);
     }
 
+    // What ArduinoJson's String writer needs, so the shim also serves host
+    // checks of the JSON parsers.
+    bool concat(const char *p, unsigned int len)
+    {
+        _s.append(p, len);
+        return true;
+    }
+    bool concat(const char *p)
+    {
+        _s.append(p ? p : "");
+        return true;
+    }
+    bool reserve(unsigned int size)
+    {
+        _s.reserve(size);
+        return true;
+    }
     String &operator+=(const String &o)
     {
         _s += o._s;

@@ -105,6 +105,7 @@
       <option value="fr24">Flightradar24 — unofficial, no key, routes included</option>
       <option value="adsblol">adsb.lol — free, no key, aircraft type + registration, no route</option>
       <option value="server">FlightWall server — routes + ETA from a server you run, falls back to adsb.lol</option>
+      <option value="local">Your own receiver — PiAware / dump1090-fa / readsb on your network</option>
     </select>
     <small class="help">Flightradar24 is an <b>unofficial scrape</b> of fr24.com for personal use only — it can break or rate-limit, and rows with a route skip the separate enrichment lookup (rows without one, mostly GA/unscheduled traffic, still use it). Best on the S3 (PSRAM). adsb.lol is a free, keyless, community-run ADS-B aggregator — no account, no ToS problem, and it carries aircraft type and registration inline, but <b>no route</b> (enrichment below still runs for that). The FlightWall server is infrastructure you deploy yourself: one HTTP call per cycle returns routes, airline names and ETA already computed, and it falls back to adsb.lol for that cycle if it can't be reached. OpenSky stays the default.</small>
 
@@ -112,6 +113,12 @@
       <label>FlightWall server URL</label>
       <input id="serverUrl" type="text" placeholder="https://flightwall.example.workers.dev" />
       <small class="help">Base URL of your deployed FlightWall server, no trailing slash. Only used when the position source above is "FlightWall server".</small>
+    </div>
+
+    <div id="receiverUrlBox" class="hide">
+      <label>Receiver address</label>
+      <input id="receiverUrl" type="text" placeholder="192.168.1.50:8080" />
+      <small class="help">Your receiver's address, or the full URL of its <b>aircraft.json</b>. Given just an address, the wall tries the usual places: PiAware serves it at <b>:8080/data/aircraft.json</b> and <b>/skyaware/data/aircraft.json</b>, readsb with tar1090 at <b>/tar1090/data/aircraft.json</b>. It's plain HTTP on your own network, so no key and no rate limit: a fetch interval of 5–10 s (Advanced) is fine. Routes and airline names still come from the enrichment source below. If the receiver is off, the wall keeps showing the last flights; it doesn't switch to an internet source.</small>
     </div>
 
     <label>Flight enrichment source (route · airline · aircraft)</label>
@@ -465,7 +472,9 @@ function toggleMode(){
 }
 
 function toggleServerUrl(){
-  $('serverUrlBox').classList.toggle('hide', $('positionSource').value !== 'server');
+  const src = $('positionSource').value;
+  $('serverUrlBox').classList.toggle('hide', src !== 'server');
+  $('receiverUrlBox').classList.toggle('hide', src !== 'local');
 }
 
 // Display units, mirroring firmware/utils/UnitFormat.h. The device keeps feet,
@@ -530,6 +539,7 @@ async function loadSettings(){
   secretField('controlToken', s.api.controlTokenSet);
   $('positionSource').value = s.api.positionSource || 'opensky';
   $('serverUrl').value = s.api.serverUrl || '';
+  $('receiverUrl').value = s.api.receiverUrl || '';
   $('enrichmentSource').value = s.api.enrichmentSource || 'adsbdb';
   $('enrichmentFallbackToAeroApi').checked = s.api.enrichmentFallbackToAeroApi !== false;
   $('enrichmentCacheSeconds').value = s.api.enrichmentCacheSeconds;
@@ -614,7 +624,7 @@ function collect(){
   const lines = v => v.split(/[\n,]/).map(x=>x.trim()).filter(Boolean);
   return {
     network:{ wifiSsid:$('wifiSsid').value, ...secret('wifiPassword') },
-    api:{ openSkyClientId:$('openSkyClientId').value, ...secret('openSkyClientSecret'), ...secret('aeroApiKey'), ...secret('controlToken'), positionSource:$('positionSource').value, serverUrl:$('serverUrl').value, enrichmentSource:$('enrichmentSource').value, enrichmentFallbackToAeroApi:$('enrichmentFallbackToAeroApi').checked, enrichmentCacheSeconds:+$('enrichmentCacheSeconds').value },
+    api:{ openSkyClientId:$('openSkyClientId').value, ...secret('openSkyClientSecret'), ...secret('aeroApiKey'), ...secret('controlToken'), positionSource:$('positionSource').value, serverUrl:$('serverUrl').value, receiverUrl:$('receiverUrl').value, enrichmentSource:$('enrichmentSource').value, enrichmentFallbackToAeroApi:$('enrichmentFallbackToAeroApi').checked, enrichmentCacheSeconds:+$('enrichmentCacheSeconds').value },
     tracking:{
       mode:$('mode').value,
       centerLat:parseFloat($('centerLat').value), centerLon:parseFloat($('centerLon').value),

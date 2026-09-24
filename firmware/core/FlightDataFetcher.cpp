@@ -37,9 +37,10 @@ FlightDataFetcher::FlightDataFetcher(BaseStateVectorFetcher *openSkyState,
                                      BaseFlightFetcher *aeroApi,
                                      BaseFlightFetcher *adsbdb,
                                      BaseStateVectorFetcher *adsbLolState,
-                                     FlightWallServerFetcher *server)
+                                     FlightWallServerFetcher *server,
+                                     BaseStateVectorFetcher *localState)
     : _openSkyState(openSkyState), _fr24State(fr24State), _aeroApi(aeroApi), _adsbdb(adsbdb),
-      _adsbLolState(adsbLolState), _server(server) {}
+      _adsbLolState(adsbLolState), _server(server), _localState(localState) {}
 
 BaseStateVectorFetcher *FlightDataFetcher::activeStateFetcher()
 {
@@ -51,6 +52,12 @@ BaseStateVectorFetcher *FlightDataFetcher::activeStateFetcher()
     case PositionSource::AdsbLol:
     case PositionSource::FlightWallServer: // server path runs earlier; this is its fallback
         if (_adsbLolState) return _adsbLolState;
+        break;
+    case PositionSource::LocalReceiver:
+        // No fallback to an internet source when the receiver is down: the
+        // point of choosing it is that the wall shows what YOUR antenna hears.
+        // A failed fetch keeps the last flights on screen, as for any source.
+        if (_localState) return _localState;
         break;
     default:
         break;
@@ -362,6 +369,7 @@ const char *FlightDataFetcher::sourceNameOf(const BaseStateVectorFetcher *src) c
     if (src == _adsbLolState)  return "adsb.lol";
     if (src == _fr24State)     return "fr24";
     if (src == _openSkyState)  return "opensky";
+    if (src == _localState)    return "receiver";
     return "unknown";
 }
 

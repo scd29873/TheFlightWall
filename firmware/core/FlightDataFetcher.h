@@ -19,7 +19,8 @@ public:
                       BaseFlightFetcher *aeroApi,
                       BaseFlightFetcher *adsbdb,
                       BaseStateVectorFetcher *adsbLolState,
-                      FlightWallServerFetcher *server);
+                      FlightWallServerFetcher *server,
+                      BaseStateVectorFetcher *localState = nullptr);
 
     // Fetches according to the current tracking mode in g_settings, applies
     // filters, caps to maxFlights, and enriches with friendly names + metrics.
@@ -84,6 +85,8 @@ private:
     // it is looked up directly rather than only through activeStateFetcher().
     BaseStateVectorFetcher *_adsbLolState;
     FlightWallServerFetcher *_server;
+    // Your own receiver on the LAN (PositionSource::LocalReceiver).
+    BaseStateVectorFetcher *_localState;
 
     // Start of the current fetch cycle, for kEnrichBudgetMs. Set in fetchFlights().
     unsigned long _cycleStartMs = 0;

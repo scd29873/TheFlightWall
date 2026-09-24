@@ -39,6 +39,7 @@ Run loop:
 #include "adapters/OpenSkyFetcher.h"
 #include "adapters/FlightRadar24Fetcher.h"
 #include "adapters/AdsbLolFetcher.h"
+#include "adapters/LocalReceiverFetcher.h"
 #include "adapters/AeroAPIFetcher.h"
 #include "adapters/AdsbdbFetcher.h"
 #include "adapters/FlightWallServerFetcher.h"
@@ -60,6 +61,8 @@ static FlightRadar24Fetcher g_fr24;
 // Keyless fallback source -- also what the server path itself falls back to
 // when the FlightWall server is unreachable (see FlightDataFetcher).
 static AdsbLolFetcher g_adsbLol;
+// Your own receiver's aircraft.json (PositionSource::LocalReceiver).
+static LocalReceiverFetcher g_localReceiver;
 static AeroAPIFetcher g_aeroApi;
 static AdsbdbFetcher g_adsbdb;
 // One HTTP call, display-ready flights -- skips Area-mode enrichment entirely
@@ -1071,7 +1074,8 @@ void setup()
 
     g_adsbdb.setHttp(&g_http);
     g_aeroApi.setHttp(&g_http);
-    g_fetcher = new FlightDataFetcher(&g_openSky, &g_fr24, &g_aeroApi, &g_adsbdb, &g_adsbLol, &g_server);
+    g_fetcher = new FlightDataFetcher(&g_openSky, &g_fr24, &g_aeroApi, &g_adsbdb, &g_adsbLol, &g_server,
+                                      &g_localReceiver);
 
     // Liveness backstop. loopTask runs on core 1, whose idle task arduino does NOT
     // watch, and loopTask isn't auto-subscribed — so today a hung loop() is silent.
@@ -1328,10 +1332,19 @@ void loop()
     // Both pressure signals, combined by max() rather than precedence -- see
     // utils/FetchCadence.h for why that distinction is load-bearing and for the
     // measurements behind each ladder's cap.
+    //
+    // Your own receiver is exempt from the EMPTY ladder only. That ladder
+    // exists because rate-limited internet sources answer throttled requests
+    // with an empty list; a LAN receiver has no limit to respect, and an
+    // empty sky there is simply an empty sky -- backing off would only delay
+    // the next plane's arrival on the wall. The failure ladder still applies,
+    // so a Pi that is switched off is not polled flat out.
+    const bool emptyIsReal = g_settings.mode == TrackingMode::Area &&
+                             g_settings.positionSource == PositionSource::LocalReceiver;
     const unsigned long intervalMs = fetchIntervalMs(
         (unsigned long)g_settings.fetchIntervalSeconds * 1000UL,
         g_consecutiveFailures,
-        g_consecutiveEmpty);
+        emptyIsReal ? (uint8_t)0 : g_consecutiveEmpty);
 
     const unsigned long now = millis();
     if (!g_firstFetchDone || (now - g_lastFetchMs >= intervalMs))
