@@ -510,7 +510,9 @@ void Hub75Display::drawLogoOrBadge(const FlightInfo &f, int16_t x, int16_t y, in
     code.toUpperCase();
     const String key = operatorAccentKey(f);
 
-    const uint8_t ts = (h >= 24) ? 2 : 1; // larger code text in a tall box
+    uint8_t ts = (h >= 56) ? 4 : (h >= 24) ? 2 : 1; // 4x fills the Wide card's 64px box
+    while (ts > 1 && (int)code.length() * 6 * ts > w)
+        --ts; // never wider than the box
     _canvas->fillRect(x, y, w, h, accentColorFor(key));
     if (code.length())
     {
@@ -558,7 +560,8 @@ int16_t Hub75Display::trackedLabelX() const
     // dispatcher selects the layout with, so the two cannot drift into
     // disagreeing about which card is on screen. Those panels still get the
     // border, which is what says "tracked"; only the word is dropped.
-    if (!usesMiniCard())
+    // The Wide card reserves the same corner (see displayWideCard).
+    if (!usesMiniCard() && !usesWideCard())
         return -1;
     const int16_t w = (int16_t)(TRACKED_LABEL_LEN * 6); // 6px advance per glyph
     const int16_t x = (int16_t)(_matrixWidth - 1 - w);
@@ -678,9 +681,10 @@ void Hub75Display::drawProgressBar(const FlightInfo &f)
         return;
 
     const int16_t y = trackedProgressRow();
-    const int16_t w = (int16_t)(_matrixWidth - 2);
+    const int16_t x = progressBarX();
+    const int16_t w = (int16_t)(_matrixWidth - 1 - x);
 
-    _canvas->fillRect(1, y, w, kProgressBarH, progressTrack());
+    _canvas->fillRect(x, y, w, kProgressBarH, progressTrack());
 
     // Clamping, rounding and the two never-quite-there rules all live in
     // utils/ProgressBar.h, host-tested. They read as fussy for a bar this
@@ -688,7 +692,7 @@ void Hub75Display::drawProgressBar(const FlightInfo &f)
     // value from drawing past the end of the canvas.
     const int filled = progressFillPixels(f.progress_pct, w);
     if (filled > 0)
-        _canvas->fillRect(1, y, (int16_t)filled, kProgressBarH, progressGreen());
+        _canvas->fillRect(x, y, (int16_t)filled, kProgressBarH, progressGreen());
 }
 
 /**
@@ -730,7 +734,9 @@ void Hub75Display::startOutput()
 
 void Hub75Display::displayFlightCard(const FlightInfo &f)
 {
-    if (usesMiniCard())
+    if (usesWideCard())
+        displayWideCard(f); // 192x64 and up (256x64 = 4x1 64x64): 64px logo + 2x text + metric rows
+    else if (usesMiniCard())
         displayMiniCard(f); // big panel (e.g. 128x64): logo + 3 info lines + 2 metric rows
     else if (_matrixHeight < 16)
         displayTextOnlyCard(f); // too short for a logo
@@ -862,6 +868,192 @@ static String stripAirlineWords(const String &name)
     return out.length() ? out : name;
 }
 
+// How many size-`ts` glyphs fit with their INK between x0 and xLast inclusive.
+// A GFX cell is 5px of glyph and 1px of spacing (times ts), and the last
+// glyph's spacing is allowed to fall past xLast.
+static int columnsBetween(int16_t x0, int16_t xLast, uint8_t ts)
+{
+    const int span = (int)xLast - (int)x0 + 1 + ts;
+    return span > 0 ? span / (6 * ts) : 0;
+}
+
+// Width of `text`'s ink at size ts: the cells, less the last spacing column.
+static int16_t inkWidth(const String &text, uint8_t ts)
+{
+    return text.length() ? (int16_t)(text.length() * 6 * ts - ts) : (int16_t)0;
+}
+
+// 192x64 and up. Written for this fork's 4x1 row of 64x64 panels (256x64).
+//
+// The Mini card would fit here, but at 6x8 type it would fill a quarter of the
+// wall and leave the rest dark. The width goes on legibility instead:
+//
+//   +--------+------------------------------------------------+
+//   |        | United UA1234                                  |  2x
+//   |  logo  | SFO -> JFK                                B77W |  2x
+//   |  64px  | Alt:35.0kft Spd:512mph                         |  1x
+//   |        | ETA:~1h05 Vr:+12ft/s                           |  1x
+//   +--------+------------------------------------------------+
+//
+// The logo box is the full height, so a 32px tile scales exactly 2x and a 64px
+// one draws natively. The metric rows are the Mini card's own (metricRow1/2),
+// so the two cards cannot drift on what "Alt" or the ETA colour means.
+void Hub75Display::displayWideCard(const FlightInfo &f)
+{
+    const uint16_t color = textColor();
+    const DisplayLayout &L = g_settings.layout;
+
+    // The tracked border, drawn last, rims the logo's outer edge; that is the
+    // same "border wins" rule displayMiniCard's glyphs live under.
+    drawLogoOrBadge(f, 0, 0, kWideLogoBox, kWideLogoBox);
+
+    const int16_t tx = kWideTextX;
+    const int16_t xLast = (int16_t)(_matrixWidth - 2); // the last column is the border's
+    const int16_t avail = (int16_t)(xLast - tx + 1);
+    const int smallCols = columnsBetween(tx, xLast, 1);
+
+    // ---- Headline (2x): airline, plus the flight number when both fit ------
+    // A tracked card's TRACKED label owns the top-right corner, so the
+    // headline stops short of it rather than running underneath.
+    const int16_t labelX = f.pinned ? trackedLabelX() : (int16_t)-1;
+    const int headCols = columnsBetween(tx, labelX < 0 ? xLast : (int16_t)(labelX - 4), 2);
+    const String flt = f.ident.length() ? f.ident : f.ident_icao;
+
+    String headline;
+    bool fltInHeadline = false;
+    if (L.showAirlineFlight)
+    {
+        String airline = f.airline_display_name_full.length() ? f.airline_display_name_full
+                         : (f.operator_iata.length() ? f.operator_iata
+                            : (f.operator_icao.length() ? f.operator_icao : f.operator_code));
+        airline = airlineNameOverride(f.operator_icao, airline);
+        // drawLogoOrBadge() above set _lastDrewLogo for exactly this flight's tile.
+        if (_lastDrewLogo)
+            airline = stripAirlineWords(airline);
+
+        if (!airline.length())
+        {
+            // No operator (GA, private): the callsign or tail IS the name.
+            headline = flt.length() ? flt : String("?");
+            fltInHeadline = flt.length() > 0;
+        }
+        else if (flt.length() && (int)(airline.length() + 1 + flt.length()) <= headCols)
+        {
+            headline = airline + " " + flt;
+            fltInHeadline = true;
+        }
+        else if ((int)airline.length() <= headCols || !_lastDrewLogo || !flt.length() ||
+                 (int)flt.length() > headCols)
+        {
+            headline = airline; // the number moves down to metric row 2
+        }
+        else
+        {
+            // The name would be cut ("Cathay Pa...", or "Bri..." beside the
+            // TRACKED label on a narrower row) while a real logo already says
+            // whose flight it is: the flight number makes the better headline.
+            headline = flt;
+            fltInHeadline = true;
+        }
+        headline = truncateToColumns(headline, headCols);
+    }
+
+    // ---- Route + aircraft type (2x) ----------------------------------------
+    // A half-known route is common (OpenSky's observed origin with no
+    // destination, for one), so the unknown end reads "?" rather than the
+    // arrow pointing at nothing -- see HANDOFF.md on routes. Codes are IATA or
+    // ICAO, so never more than 4 characters; the clamp only stops a malformed
+    // value from the wire pushing the type off the panel.
+    String origin, dest;
+    if (L.showRoute)
+    {
+        origin = f.origin.displayCode().substring(0, 4);
+        dest = f.destination.displayCode().substring(0, 4);
+        if (origin.length() || dest.length())
+        {
+            if (!origin.length())
+                origin = "?";
+            if (!dest.length())
+                dest = "?";
+        }
+    }
+    const bool haveRoute = origin.length() > 0;
+    const String type = L.showAircraft ? f.aircraft_code : String("");
+
+    // The arrow is the font's own CP437 0x1A, 5px of ink per scale step.
+    const int16_t arrowInk = 5 * 2;
+    int16_t gap = 6;
+    auto routeInk = [&]()
+    { return (int16_t)(inkWidth(origin, 2) + gap + arrowInk + gap + inkWidth(dest, 2)); };
+    bool typeOnRow = type.length() > 0 && inkWidth(type, 2) <= avail;
+    if (haveRoute && typeOnRow && routeInk() + 12 + inkWidth(type, 2) > avail)
+        gap = 2; // tighten the arrow before giving anything up
+    if (haveRoute && typeOnRow && routeInk() + 12 + inkWidth(type, 2) > avail)
+        typeOnRow = false; // narrower walls: the type joins metric row 1 instead
+
+    // ---- Metric rows (1x), shared with the Mini card ------------------------
+    String row1 = metricRow1(f, smallCols);
+    if (type.length() && !typeOnRow)
+    {
+        const std::vector<String> parts{row1, type};
+        row1 = joinWithinColumns(parts, smallCols);
+    }
+    const String row2 = metricRow2(f, smallCols, L.flightNumberOverVr && !fltInHeadline);
+
+    // ---- Vertical placement --------------------------------------------------
+    // 2x rows are 16px cells and 1x rows 8px, 3px apart, plus 1px where the
+    // large type meets the small. Everything present is centred in the space
+    // inside the border, less the progress bar's rows when this card has one.
+    const bool headRow = headline.length() > 0;
+    const bool routeRow = haveRoute || typeOnRow;
+    const int nBig = (headRow ? 1 : 0) + (routeRow ? 1 : 0);
+    const int nSmall = (row1.length() ? 1 : 0) + (row2.length() ? 1 : 0);
+    if (nBig + nSmall == 0)
+        return;
+    const int blockH = nBig * 16 + nSmall * 8 + (nBig + nSmall - 1) * 3 + ((nBig && nSmall) ? 1 : 0);
+    const int barRows = hasProgressBar(f) ? kProgressBarH + 1 : 0;
+    const int innerH = _matrixHeight - 2 - barRows;
+    int16_t y = (int16_t)(1 + (innerH - blockH) / 2);
+    if (y < 1)
+        y = 1;
+
+    _canvas->setTextSize(2);
+    if (headRow)
+    {
+        drawTextLine(tx, y, headline, color);
+        y += 16 + 3;
+    }
+    if (routeRow)
+    {
+        if (haveRoute)
+        {
+            int16_t x = tx;
+            drawTextLine(x, y, origin, color);
+            x += inkWidth(origin, 2) + gap;
+            // Dimmer than the codes so the codes are what the eye lands on.
+            // bg == fg is Adafruit_GFX's "transparent background".
+            const uint16_t arrow = rgb565(120, 120, 120);
+            _canvas->drawChar(x, y, 0x1A, arrow, arrow, 2);
+            x += arrowInk + gap;
+            drawTextLine(x, y, dest, color);
+        }
+        if (typeOnRow)
+            drawTextLine(haveRoute ? (int16_t)(xLast + 1 - inkWidth(type, 2)) : tx, y, type, color);
+        y += 16 + 3;
+    }
+    _canvas->setTextSize(1);
+
+    if (nBig && nSmall)
+        y += 1;
+    if (row1.length())
+    {
+        drawTextLine(tx, y, row1, color);
+        y += 8 + 3;
+    }
+    if (row2.length())
+        drawMetricRow2(tx, y, row2, f);
+}
+
 void Hub75Display::displayMiniCard(const FlightInfo &f)
 {
     const uint16_t color = textColor();
@@ -905,13 +1097,28 @@ void Hub75Display::displayMiniCard(const FlightInfo &f)
     if (type.length())
         drawTextLine(tx, topY + 22, truncateToColumns(type, topCols), color);
 
-    // Two full-width metric rows at the bottom. If a row doesn't fit, we drop the
-    // unit suffixes (mph/ft/deg/...) to reclaim width rather than truncating with
-    // an ellipsis — the numbers stay readable.
+    // Two full-width metric rows at the bottom. metricRow1/metricRow2 drop the
+    // unit suffixes (mph/ft/deg/...) to reclaim width rather than truncating
+    // with an ellipsis, so the numbers stay readable.
     const int botCols = (_matrixWidth - 2) / 6;
-    const DisplayLayout &L = g_settings.layout;
+    const String row1 = metricRow1(f, botCols);
+    const String row2 = metricRow2(f, botCols, g_settings.layout.flightNumberOverVr);
 
-    auto buildRow1 = [&](bool unit)
+    int16_t by = (row1.length() && row2.length()) ? 40 : 44;
+    if (row1.length())
+    {
+        drawTextLine(1, by, row1, color);
+        by += 12;
+    }
+    if (row2.length())
+        drawMetricRow2(1, by, row2, f);
+}
+
+// Metric row 1: altitude and speed.
+String Hub75Display::metricRow1(const FlightInfo &f, int cols)
+{
+    const DisplayLayout &L = g_settings.layout;
+    auto build = [&](bool unit)
     {
         String r;
         if (L.showAltitude)
@@ -928,34 +1135,46 @@ void Hub75Display::displayMiniCard(const FlightInfo &f)
         }
         return r;
     };
-    // Row 2 is filled from an ORDERED candidate list against the column
-    // budget, not from a chain of mutually-exclusive branches.
-    //
-    // It used to be a chain: Trk, then exactly ONE of ETA / flight number / Vr.
-    // The width reasoning behind that was sound -- "Trk:230deg"(10) plus
-    // "ETA:LANDING"(11) is 22 against botCols' 21 at 128px, so all three really
-    // cannot share the row -- but the cost was that a card showing "lands in
-    // 7h10" could never also say WHICH flight lands then, and that is the pair
-    // a viewer most wants together. The old comment here anticipated this and
-    // named the fix; joinWithinColumns() is it.
-    //
-    // Order below IS priority. ETA and the flight number lead because they
-    // answer "what is this and when does it get there"; heading and vertical
-    // rate are ambient detail that can be dropped when the row is tight. At
-    // 128px the leading pair costs at most "ETA:LANDING"(11) + " " +
-    // "SWA1234"(7) = 19 of 21, so Trk correctly gives way -- while a wider
-    // panel has room for it and will show it.
-    //
-    // A candidate that does not fit is skipped rather than truncated, and
-    // skipping it does not block a shorter later one, so Trk giving way to
-    // "Vr:0" is expected behaviour.
-    auto buildRow2 = [&](bool unit)
+    String row = build(true);
+    if ((int)row.length() > cols)
+        row = build(false); // drop units instead of "..."
+    return truncateToColumns(row, cols);
+}
+
+// Metric row 2 is filled from an ORDERED candidate list against the column
+// budget, not from a chain of mutually-exclusive branches.
+//
+// It used to be a chain: Trk, then exactly ONE of ETA / flight number / Vr.
+// The width reasoning behind that was sound -- "Trk:230deg"(10) plus
+// "ETA:LANDING"(11) is 22 against botCols' 21 at 128px, so all three really
+// cannot share the row -- but the cost was that a card showing "lands in
+// 7h10" could never also say WHICH flight lands then, and that is the pair
+// a viewer most wants together. The old comment here anticipated this and
+// named the fix; joinWithinColumns() is it.
+//
+// Order below IS priority. ETA and the flight number lead because they
+// answer "what is this and when does it get there"; heading and vertical
+// rate are ambient detail that can be dropped when the row is tight. At
+// 128px the leading pair costs at most "ETA:LANDING"(11) + " " +
+// "SWA1234"(7) = 19 of 21, so Trk correctly gives way -- while a wider
+// panel has room for it and will show it.
+//
+// A candidate that does not fit is skipped rather than truncated, and
+// skipping it does not block a shorter later one, so Trk giving way to
+// "Vr:0" is expected behaviour.
+//
+// `withFlightNumber` is the Mini card's flightNumberOverVr toggle as-is; the
+// Wide card also turns it off when its headline already carries the number.
+String Hub75Display::metricRow2(const FlightInfo &f, int cols, bool withFlightNumber)
+{
+    const DisplayLayout &L = g_settings.layout;
+    auto build = [&](bool unit)
     {
         std::vector<String> cands;
         const bool haveEta = L.showEta && f.eta_text.length();
         if (haveEta)
             cands.push_back("ETA:" + f.eta_text);
-        if (L.flightNumberOverVr)
+        if (withFlightNumber)
         {
             const String flt = f.ident.length() ? f.ident : f.ident_icao;
             if (flt.length())
@@ -981,15 +1200,11 @@ void Hub75Display::displayMiniCard(const FlightInfo &f)
             if (v.length())
                 cands.push_back("Vr:" + v);
         }
-        return joinWithinColumns(cands, botCols);
+        return joinWithinColumns(cands, cols);
     };
-
-    String row1 = buildRow1(true);
-    if ((int)row1.length() > botCols)
-        row1 = buildRow1(false); // drop units instead of "..."
-    String row2 = buildRow2(true);
-    if ((int)row2.length() > botCols)
-        row2 = buildRow2(false);
+    String row = build(true);
+    if ((int)row.length() > cols)
+        row = build(false);
 
     // Last-resort clamp, not the normal path: every OTHER value composed above
     // is a formatted number with an inherently bounded width (a heading is
@@ -998,46 +1213,39 @@ void Hub75Display::displayMiniCard(const FlightInfo &f)
     // STRING from the wire with no length cap between the server and here --
     // fine for any real eta_text (worst realistic case computed above still
     // fits after the fallback), but a malformed value must not be able to push
-    // text off the edge of the panel. truncateToColumns() is already a no-op
-    // when the row fits (same unconditional-call style as the topCols lines
-    // above), so this changes nothing in the normal case.
-    row1 = truncateToColumns(row1, botCols);
-    row2 = truncateToColumns(row2, botCols);
+    // text off the edge of the panel. truncateToColumns() is a no-op when the
+    // row fits, so this changes nothing in the normal case.
+    return truncateToColumns(row, cols);
+}
 
-    int16_t by = (row1.length() && row2.length()) ? 40 : 44;
-    if (row1.length())
+// Only the ETA takes the progress green; whatever shares the row with it stays
+// the ordinary colour. Split on the row that was actually composed rather than
+// on the candidate list, because joinWithinColumns may have dropped the ETA for
+// width and truncateToColumns may have cut it -- reconstructing "ETA:" +
+// eta_text here would then colour a stretch of the row that does not say what
+// we think it says.
+//
+// ETA is always the FIRST candidate (see metricRow2), so when it is on the row
+// at all it starts at column 0, and the separator is a single space that no
+// eta_text of the server's contains ("~1h10", "LANDING"). The 6px fixed-width
+// font makes the rest pure arithmetic.
+void Hub75Display::drawMetricRow2(int16_t x, int16_t y, const String &row2, const FlightInfo &f)
+{
+    const uint16_t color = textColor();
+    const uint16_t etaColor = etaColorFor(f);
+    const int sep = (etaColor != color && row2.startsWith("ETA:")) ? row2.indexOf(' ') : -2;
+    if (sep == -2)
     {
-        drawTextLine(1, by, row1, color);
-        by += 12;
+        drawTextLine(x, y, row2, color);
     }
-    if (row2.length())
+    else if (sep < 0)
     {
-        // Only the ETA takes the progress green; whatever shares the row with
-        // it stays the ordinary colour. Split on the row that was actually
-        // composed rather than on the candidate list, because joinWithinColumns
-        // may have dropped the ETA for width and truncateToColumns may have cut
-        // it -- reconstructing "ETA:" + eta_text here would then colour a
-        // stretch of the row that does not say what we think it says.
-        //
-        // ETA is always the FIRST candidate (see buildRow2), so when it is on
-        // the row at all it starts at column 0, and the separator is a single
-        // space that no eta_text of the server's contains ("~1h10", "LANDING").
-        // The 6px fixed-width font makes the rest pure arithmetic.
-        const uint16_t etaColor = etaColorFor(f);
-        const int sep = (etaColor != color && row2.startsWith("ETA:")) ? row2.indexOf(' ') : -2;
-        if (sep == -2)
-        {
-            drawTextLine(1, by, row2, color);
-        }
-        else if (sep < 0)
-        {
-            drawTextLine(1, by, row2, etaColor); // the ETA is the whole row
-        }
-        else
-        {
-            drawTextLine(1, by, row2.substring(0, sep), etaColor);
-            drawTextLine((int16_t)(1 + sep * 6), by, row2.substring(sep), color);
-        }
+        drawTextLine(x, y, row2, etaColor); // the ETA is the whole row
+    }
+    else
+    {
+        drawTextLine(x, y, row2.substring(0, sep), etaColor);
+        drawTextLine((int16_t)(x + sep * 6), y, row2.substring(sep), color);
     }
 }
 
@@ -1339,17 +1547,23 @@ void Hub75Display::drawClockScreen()
     strftime(dateBuf, sizeof(dateBuf), "%a %b %d", &tmv);
 
     // Pick a clock text size that fits the panel width (6x8 glyphs scale by size).
+    // 4x only on a wide row (256x64: "12:00 AM" is 192px), which also earns the
+    // date line 2x type.
     uint8_t ts = 2;
     const int glyphs = (int)strlen(timeBuf);
     if (_matrixWidth >= glyphs * 6 * 3 && _matrixHeight >= 8 * 3 + 10)
         ts = 3;
+    if (_matrixWidth >= glyphs * 6 * 4 && _matrixHeight >= 8 * 4 + 20)
+        ts = 4;
     if (_matrixWidth < glyphs * 6 * 2)
         ts = 1;
     const int tW = (int)strlen(timeBuf) * 6 * ts; // "3:45 PM" / "12:00 AM" vary in width
     const int tH = 8 * ts;
+    const uint8_t ds = (ts >= 4) ? 2 : 1; // date text size
+    const int dH = 8 * ds, dGap = 2 * ds;
 
-    const bool haveDate = (_matrixHeight >= tH + 10);
-    const int blockH = haveDate ? (tH + 2 + 8) : tH;
+    const bool haveDate = (_matrixHeight >= tH + dGap + dH);
+    const int blockH = haveDate ? (tH + dGap + dH) : tH;
     int16_t ty = (_matrixHeight - blockH) / 2;
     if (ty < 0)
         ty = 0;
@@ -1363,11 +1577,13 @@ void Hub75Display::drawClockScreen()
 
     if (haveDate)
     {
-        const int dW = (int)strlen(dateBuf) * 6;
+        const int dW = (int)strlen(dateBuf) * 6 * ds;
         int16_t dx = (_matrixWidth - dW) / 2;
         if (dx < 0)
             dx = 0;
-        drawTextLine(dx, ty + tH + 2, String(dateBuf), color);
+        _canvas->setTextSize(ds);
+        drawTextLine(dx, ty + tH + dGap, String(dateBuf), color);
+        _canvas->setTextSize(1);
     }
     present();
 }
@@ -1388,37 +1604,65 @@ void Hub75Display::drawFunFactScreen(size_t factIdx)
     const size_t idx = factIdx % kFunFactCount;
     const String fact = String(kFunFacts[idx]);
 
-    const int charWidth = 6, charHeight = 8, lineSpacing = 2;
-    int maxCols = (_matrixWidth - 2) / charWidth;
-    if (maxCols < 1)
-        maxCols = 1;
-
-    // Greedy word-wrap into lines of <= maxCols columns.
-    std::vector<String> lines;
-    String cur;
-    int start = 0;
-    const int n = (int)fact.length();
-    while (start < n)
+    // Greedy word-wrap into lines of <= maxCols columns. Returns false if a
+    // single word had to be hard-truncated to fit.
+    auto wrap = [&](int maxCols, std::vector<String> &lines)
     {
-        int sp = fact.indexOf(' ', start);
-        String word = (sp < 0) ? fact.substring(start) : fact.substring(start, sp);
-        if ((int)word.length() > maxCols) // single word too long: hard-truncate
-            word = truncateToColumns(word, maxCols);
-        if (cur.length() == 0)
-            cur = word;
-        else if ((int)(cur.length() + 1 + word.length()) <= maxCols)
-            cur += " " + word;
-        else
+        bool whole = true;
+        String cur;
+        int start = 0;
+        const int n = (int)fact.length();
+        while (start < n)
         {
-            lines.push_back(cur);
-            cur = word;
+            int sp = fact.indexOf(' ', start);
+            String word = (sp < 0) ? fact.substring(start) : fact.substring(start, sp);
+            if ((int)word.length() > maxCols) // single word too long: hard-truncate
+            {
+                word = truncateToColumns(word, maxCols);
+                whole = false;
+            }
+            if (cur.length() == 0)
+                cur = word;
+            else if ((int)(cur.length() + 1 + word.length()) <= maxCols)
+                cur += " " + word;
+            else
+            {
+                lines.push_back(cur);
+                cur = word;
+            }
+            if (sp < 0)
+                break;
+            start = sp + 1;
         }
-        if (sp < 0)
-            break;
-        start = sp + 1;
+        if (cur.length())
+            lines.push_back(cur);
+        return whole;
+    };
+
+    // 2x type on a wide row when the WHOLE fact fits at 2x (every bundled
+    // one does at 256x64: 21 columns by 3 lines). Otherwise, and on every
+    // narrower panel, 1x exactly as before -- a fact cut off mid-sentence is
+    // worse than small type.
+    const int lineSpacing = 2;
+    uint8_t ts = 1;
+    std::vector<String> lines;
+    if (usesWideCard())
+    {
+        const int cols2 = (_matrixWidth - 2) / 12;
+        const int lines2 = (_matrixHeight + lineSpacing) / (16 + lineSpacing);
+        if (cols2 >= 1 && wrap(cols2, lines) && (int)lines.size() <= lines2)
+            ts = 2;
+        else
+            lines.clear();
     }
-    if (cur.length())
-        lines.push_back(cur);
+    const int charWidth = 6 * ts, charHeight = 8 * ts;
+    if (ts == 1)
+    {
+        int maxCols = (_matrixWidth - 2) / charWidth;
+        if (maxCols < 1)
+            maxCols = 1;
+        wrap(maxCols, lines);
+    }
 
     // Clamp to what fits vertically.
     const int perLine = charHeight + lineSpacing;
@@ -1433,6 +1677,7 @@ void Hub75Display::drawFunFactScreen(size_t factIdx)
     int16_t y = (_matrixHeight - totalH) / 2;
     if (y < 0)
         y = 0;
+    _canvas->setTextSize(ts);
     for (const String &ln : lines)
     {
         int16_t x = (_matrixWidth - (int)ln.length() * charWidth) / 2;
@@ -1441,6 +1686,7 @@ void Hub75Display::drawFunFactScreen(size_t factIdx)
         drawTextLine(x, y, ln, color);
         y += perLine;
     }
+    _canvas->setTextSize(1);
     present();
 }
 
@@ -1490,12 +1736,17 @@ void Hub75Display::displaySplash()
     uint8_t ts = 1;
     if (_matrixWidth >= (int)wordmark.length() * charW * 2)
         ts = 2;
+    // 3x (180px) on a wide row tall enough for all three pieces at scale
+    // (24 + 22 + 10 = 56); the plane glyph doubles with it.
+    if (_matrixWidth >= (int)wordmark.length() * charW * 3 && _matrixHeight >= 56)
+        ts = 3;
+    const int g = (ts >= 3) ? 2 : 1; // plane glyph scale
     const int wmW = (int)wordmark.length() * charW * ts;
     const int wmH = charH * ts;
 
     // Glyph and tagline are optional; include them only if the combined block fits
-    // vertically. Glyph ~13px tall incl. spacing; tagline 8px + 2px gap.
-    const int glyphH = 8, glyphGap = 3;   // vertical room a glyph adds above wordmark
+    // vertically. Glyph ~13px tall incl. spacing (x g); tagline 8px + 2px gap.
+    const int glyphH = 8 * g, glyphGap = 3 * g; // vertical room a glyph adds above wordmark
     const int tagW = (int)tagline.length() * charW;
     const bool tagFits = (tagW <= _matrixWidth);
 
@@ -1522,20 +1773,20 @@ void Hub75Display::displaySplash()
     // 1) Plane glyph (top-view silhouette) drawn from primitives, centered.
     if (showGlyph)
     {
-        const int gw = 14, gh = glyphH;            // glyph bounding box
+        const int gw = 14 * g, gh = glyphH;        // glyph bounding box
         int16_t gx = (int16_t)((_matrixWidth - gw) / 2);
         if (gx < 0)
             gx = 0;
         const int16_t cy = (int16_t)(y + gh / 2); // fuselage centerline
         // Fuselage (nose at right): a horizontal body with a pointed nose.
-        _canvas->fillRect(gx + 2, cy - 1, 9, 2, accent);
-        _canvas->fillTriangle(gx + 11, cy - 1, gx + 11, cy + 1, gx + 13, cy, accent);
+        _canvas->fillRect(gx + 2 * g, cy - 1 * g, 9 * g, 2 * g, accent);
+        _canvas->fillTriangle(gx + 11 * g, cy - 1 * g, gx + 11 * g, cy + 1 * g, gx + 13 * g, cy, accent);
         // Main wings (swept back) as two triangles meeting at the fuselage.
-        _canvas->fillTriangle(gx + 6, cy, gx + 2, cy - 4, gx + 8, cy, accent);
-        _canvas->fillTriangle(gx + 6, cy, gx + 2, cy + 4, gx + 8, cy, accent);
+        _canvas->fillTriangle(gx + 6 * g, cy, gx + 2 * g, cy - 4 * g, gx + 8 * g, cy, accent);
+        _canvas->fillTriangle(gx + 6 * g, cy, gx + 2 * g, cy + 4 * g, gx + 8 * g, cy, accent);
         // Tailplane (small fins near the tail at the left).
-        _canvas->fillTriangle(gx + 3, cy, gx + 1, cy - 2, gx + 4, cy, accent);
-        _canvas->fillTriangle(gx + 3, cy, gx + 1, cy + 2, gx + 4, cy, accent);
+        _canvas->fillTriangle(gx + 3 * g, cy, gx + 1 * g, cy - 2 * g, gx + 4 * g, cy, accent);
+        _canvas->fillTriangle(gx + 3 * g, cy, gx + 1 * g, cy + 2 * g, gx + 4 * g, cy, accent);
         y += gh + glyphGap;
     }
 

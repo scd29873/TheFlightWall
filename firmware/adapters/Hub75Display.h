@@ -141,7 +141,16 @@ private:
     // Which layout displayFlightCard will pick, as a predicate: the tracked
     // label needs the answer BEFORE the card is drawn, and a second copy of
     // the test is how the label ends up on a card that never reserved room.
-    bool usesMiniCard() const { return _matrixHeight >= 48 && _matrixWidth >= 96; }
+    // Wide first: three or more 64x64 panels in a row (this fork's 4x1 wall is
+    // 256x64) would otherwise get the Mini card and leave most of it empty.
+    bool usesWideCard() const { return _matrixHeight >= 64 && _matrixWidth >= 192; }
+    bool usesMiniCard() const { return !usesWideCard() && _matrixHeight >= 48 && _matrixWidth >= 96; }
+    // The Wide card's logo box (a 32px tile scales exactly 2x into it) and the
+    // column its text starts at. The progress bar starts there too, so it runs
+    // under the text rather than across the logo.
+    static constexpr int16_t kWideLogoBox = 64;
+    static constexpr int16_t kWideTextX = kWideLogoBox + 4;
+    int16_t progressBarX() const { return usesWideCard() ? kWideTextX : (int16_t)1; }
     int16_t trackedLabelX() const;
     // The row a tracked card's progress bar occupies, or -1 when this panel
     // has no room for one. Public to the class rather than local to
@@ -161,7 +170,14 @@ private:
     void drawTrackedChrome(const FlightInfo &f);
     void buildFlightLines(const FlightInfo &f, std::vector<String> &outLines, bool includeAirline);
     void displayFlightCard(const FlightInfo &f);     // picks a layout by panel shape
+    void displayWideCard(const FlightInfo &f);       // 192x64+ rows (256x64): 64px logo + 2x text + metric rows
     void displayMiniCard(const FlightInfo &f);       // big panels (128x64): logo + info + metric rows
+    // The two metric rows the Mini and Wide cards share: altitude + speed, then
+    // ETA / flight number / heading / vertical rate by priority, each fitted to
+    // `cols` columns of 6px text. drawMetricRow2 colours the ETA part.
+    String metricRow1(const FlightInfo &f, int cols);
+    String metricRow2(const FlightInfo &f, int cols, bool withFlightNumber);
+    void drawMetricRow2(int16_t x, int16_t y, const String &row2, const FlightInfo &f);
     void displaySideBySideCard(const FlightInfo &f); // wide panels: logo left, text right
     void displayStackedCard(const FlightInfo &f);    // square/tall panels: logo top, text below
     void displayTextOnlyCard(const FlightInfo &f);   // very short panels: bordered text
