@@ -13,10 +13,11 @@ builds it.
 *Rendered on a PC from the real display code by `tools/panel_preview/run.sh`.
 The faint lines are the joins between the four panels.*
 
-> **Not yet run on real hardware.** The layout was checked by rendering the real
-> display code on a PC (see [Preview](#preview-the-screens-without-hardware)), and the
-> other panel sizes render pixel-identical to upstream. The firmware still needs its
-> first build with PlatformIO, and first light on the panels.
+> **Not yet run on real hardware.** The firmware builds for all four boards with
+> PlatformIO. The layout was checked by rendering the real display code on a PC (see
+> [Preview](#preview-the-screens-without-hardware)), and with the default units the
+> other panel sizes render pixel-identical to upstream. What's left is first light on
+> the panels, and a first fetch from your receiver.
 
 ## Parts
 
@@ -198,15 +199,84 @@ pio run -t uploadfs     # web UI + airline logos -- ERASES saved settings
 1. Join the **`FlightWall-Setup`** WiFi. The setup page opens (or go to
    `http://192.168.4.1`). Pick your network, save, and restart.
 2. Open **`http://flightwall.local/`**, or the IP shown on the wall.
-3. **Setup → API keys**: enter your OpenSky client id and secret. They're free: make an
-   account at [opensky-network.org](https://opensky-network.org/), then add an API
-   client on your account page. Enrichment stays on **adsbdb**, which is free and
-   needs no key.
+3. **Setup → Position source**: pick where aircraft positions come from.
+   - **Your own receiver** (a Pi running PiAware, dump1090-fa or readsb): choose it
+     and enter the Pi's address. See [Your own receiver](#your-own-receiver).
+   - **OpenSky** (free, internet): enter your client id and secret under API keys.
+     To get them, make an account at
+     [opensky-network.org](https://opensky-network.org/), then add an API client on
+     your account page.
+
+   Enrichment (route, airline, aircraft type) stays on **adsbdb** either way. It's
+   free and needs no key.
 4. **Tracking → Area**: set your location and radius. Auto-detect gives an
-   IP-based guess, so check it.
-5. **Advanced → HUB75 panel** should already read 64 × 64 × 4. On a board that
+   IP-based guess, so check it. With your own receiver, use your house: the
+   radius picks which of the aircraft your antenna hears make it onto the wall.
+5. **Display → Units**: altitude, speed, climb rate and distance each have their
+   own choice. See [Units](#units).
+6. **Advanced → HUB75 panel** should already read 64 × 64 × 4. On a board that
    saved another size before, press **256×64 (4×1)**, then Save and Restart.
-6. **Tracking → Filters**: the airline ignore list is there, e.g. for business-jet operators.
+7. **Tracking → Filters**: the airline ignore list is there, e.g. for business-jet operators.
+
+## Your own receiver
+
+A Pi 4 feeding FlightAware already serves every aircraft it hears as a JSON file
+for its own map page. The wall reads that file over your home network, so feeding
+FlightAware carries on untouched. Compared with the internet sources:
+
+- **It's reliable:** plain HTTP inside your house, with no TLS on a radio the panels
+  already make work hard, no API key and no rate limit.
+- **It updates fast:** set Advanced → Fetch interval to 5–10 s. The internet sources
+  need about 30 s.
+- **It's yours:** the wall shows exactly what your antenna hears.
+
+Pick **Your own receiver** under Setup → Position source and enter one of these
+under **Receiver address**:
+
+| You run | Enter | The wall reads |
+|---|---|---|
+| PiAware (dump1090-fa) | `192.168.1.50:8080` | `:8080/data/aircraft.json` |
+| PiAware, port 80 | `192.168.1.50` | `/skyaware/data/aircraft.json` |
+| readsb + tar1090 | `192.168.1.50` | `/tar1090/data/aircraft.json` |
+| anything else | the full URL of its `aircraft.json` | exactly that |
+
+Given just an address, the wall tries the usual paths in turn and remembers the
+one that answers. Everything is filtered to your radius, and aircraft whose last
+position is more than 60 s old are skipped.
+
+- **Give the Pi a fixed address.** A DHCP reservation on your router is easiest.
+  `piaware.local` should also work, but an IP address never needs a name lookup.
+- **Routes still come from the internet.** A receiver hears where an aircraft *is*,
+  not where it's going. The airline, route and aircraft type come from adsbdb, as
+  they do under OpenSky. readsb can fill the aircraft type itself if it's run with
+  its aircraft database; dump1090-fa can't.
+- **If the Pi is off,** the wall keeps showing the last flights and retries,
+  backing off gradually. It doesn't switch to an internet source, because the
+  point of this source is your own antenna.
+- **Check it's working:** the web page's status line reads `source: receiver`. The
+  serial log shows `[fetch] receiver: 212 aircraft heard, 3 in radius`.
+
+## Units
+
+Display → Units has a separate choice for each quantity:
+
+| Quantity | Choices | Default |
+|---|---|---|
+| Altitude | feet, metres | feet |
+| Speed | knots, mph, km/h | mph |
+| Climb rate | ft/min, ft/s, m/s | ft/s |
+| Distance | km, miles, nautical miles | km |
+
+They apply to the wall, the web page's flight list, and the altitude-band and
+radius boxes. The device stores feet and kilometres whatever you pick, so
+switching loses nothing. Metres are rounded to the nearest 10, because ADS-B
+reports altitude in 25 ft steps.
+
+The defaults are what the 128×64 and wide cards always showed. Upstream's
+smaller panel layouts and the flight list used knots and ft/min; they now follow
+these settings too.
+
+![Metric flight card](../images/matrixportal-4x1-metric.png)
 
 ## Auto-dim
 
@@ -258,9 +328,9 @@ Compared with FeatherKing/TheFlightWall_OSS:
   - the airline and flight number, then the route and aircraft type, in 2× type,
   - the Mini card's two metric rows underneath.
 
-  The clock, fun facts and boot splash scale up too. Every other panel size renders
-  pixel-identical to upstream (checked with the preview tool against upstream's
-  code).
+  The clock, fun facts and boot splash scale up too. With the default units, every
+  other panel size renders pixel-identical to upstream (checked with the preview tool
+  against upstream's code).
 - **Rotate 180°** option (Advanced → HUB75 panel).
 - **Light sensor pins.** The onboard sensor is on GPIO 5; A2 takes an external LDR.
   `/api/status` now publishes the exact usable pins (`adc1Pins`), since on this
@@ -280,6 +350,11 @@ Compared with FeatherKing/TheFlightWall_OSS:
 
   Put the public half in `FirmwareSigningKey.h`. When signing, point
   `FLIGHTWALL_SIGNING_KEY` at the private half for `tools/sign_firmware.sh`.
+- **Your own receiver as a position source**: PiAware, dump1090-fa, readsb or
+  dump1090 on your network, by address or by the URL of its `aircraft.json`. Its
+  rows go through the same parser as adsb.lol's (the format is the same).
+- **Units per quantity**: altitude, speed, climb rate and distance, each chosen
+  separately, on the wall and in the web page.
 - `test/test_lru.cpp` now compiles with GCC: it was missing `#include <vector>`.
 
 ## Keeping up with upstream

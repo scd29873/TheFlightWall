@@ -23,6 +23,7 @@ This build is at feature parity with the FlightWall Mini: two tracking modes, li
 - **[FlightAware AeroAPI](https://www.flightaware.com/commercial/aeroapi/)** — optional paid enrichment for authoritative routes.
 - **Flightradar24** — optional, keyless, **unofficial** position+route source (personal use only).
 - **[adsb.lol](https://adsb.lol/)** — optional, keyless, community ADS-B aggregator. No route of its own.
+- **Your own receiver** — optional, *added in this fork*: PiAware / dump1090-fa / readsb on your network, read from its `aircraft.json` over plain HTTP. No key, no rate limit. See [docs/matrixportal-s3-4x1.md](docs/matrixportal-s3-4x1.md#your-own-receiver).
 - **FlightWall server** — optional, a server you deploy yourself; one call per cycle returns routes, airline names and ETA already resolved, falling back to adsb.lol if unreachable.
 
 See [Data API Keys](#data-api-keys) and [`docs/data-sources.md`](docs/data-sources.md) for how each source is used, costs, and trade-offs.
