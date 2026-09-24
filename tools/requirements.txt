@@ -1,0 +1,7 @@
+# Python packages the scripts in tools/ need:  pip install -r tools/requirements.txt
+#   pillow   -- logo converters/generators (png_to_rgb565, convert_logo_folder,
+#               gen_*_logos, test_logo_tools) and panel_preview/render.py
+#   pyserial -- read_serial.py (PlatformIO's own ~/.platformio/penv already has it)
+# PlatformIO itself is separate: the VS Code extension, or `pip install platformio`.
+pillow
+pyserial

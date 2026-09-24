@@ -13,10 +13,14 @@
 #
 # Adafruit GFX is taken from a PlatformIO build if there has been one
 # (firmware/.pio/libdeps/*), else from GFX_DIR, else cloned once into .cache/.
-# Needs g++ and Python 3 with Pillow (pip install pillow).
+# Needs g++ and Python 3 with Pillow (pip install -r tools/requirements.txt).
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+command -v "${CXX:-g++}" >/dev/null || { echo "needs a C++ compiler (g++ or set CXX)" >&2; exit 2; }
+python3 -c "import PIL" 2>/dev/null ||
+  { echo "needs Pillow: pip install -r tools/requirements.txt" >&2; exit 2; }
 fw="$(cd "$here/../../firmware" && pwd)"
 out="$here/out"
 chain="${1:-4}"

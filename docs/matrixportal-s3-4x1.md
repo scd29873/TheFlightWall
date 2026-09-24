@@ -165,8 +165,9 @@ tools/panel_preview/run.sh 2      # the same screens at 128x64
 
 This compiles the real `firmware/adapters/Hub75Display.cpp` on your computer, so
 it doubles as a compile check of that file. It then renders every screen: flight
-cards, tracked card, clock, fun fact and splash. It needs g++ and Python with
-Pillow. Use it to tune the layout before flashing.
+cards, tracked card, clock, fun fact and splash. It needs g++, and Python with
+Pillow (`pip install -r tools/requirements.txt`). Use it to tune the layout before
+flashing.
 
 ## What this fork changes
 
