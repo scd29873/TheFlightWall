@@ -45,8 +45,12 @@ CHIP_IDS = {0: "esp32", 2: "esp32s2", 5: "esp32c3", 9: "esp32s3", 12: "esp32c2",
 
 
 def find_pio(explicit):
+    # PATH first (VS Code's PlatformIO terminal puts pio there), then where
+    # PlatformIO installs its own copy: penv/bin on macOS and Linux,
+    # penv\Scripts\pio.exe on Windows.
     for candidate in (explicit, os.environ.get("PIO"), shutil.which("pio"), shutil.which("platformio"),
-                      os.path.expanduser("~/.platformio/penv/bin/pio")):
+                      os.path.expanduser("~/.platformio/penv/bin/pio"),
+                      os.path.expanduser("~/.platformio/penv/Scripts/pio.exe")):
         if candidate and os.path.exists(candidate):
             return candidate
     sys.exit("cannot find PlatformIO's `pio`; pass --pio /path/to/pio")

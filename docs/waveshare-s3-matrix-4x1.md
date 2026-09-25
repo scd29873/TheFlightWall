@@ -95,11 +95,17 @@ On the computer the board plugs into. Nothing below can be done from a cloud
 session: flashing and debugging need the board on your USB port.
 
 1. **VS Code + the PlatformIO IDE extension** (recommended), or the command line
-   alone: `pipx install platformio` (or `pip install platformio`).
-2. **Open the `firmware/` folder.** The first build downloads everything else:
+   alone: `pipx install platformio` (or `pip install platformio`). PlatformIO
+   brings its own Python, so none needs installing for it.
+2. **Git** ([Git for Windows](https://git-scm.com/downloads) on a PC; macOS and
+   most Linux systems already have it). It clones this repository, and PlatformIO
+   needs it too: the panel library is fetched from its git repository, and
+   without Git the build stops with "Please install Git client". Restart VS Code
+   after installing it.
+3. **Open the `firmware/` folder.** The first build downloads everything else:
    the ESP32-S3 compiler, the Arduino core, the libraries, and, for debugging,
-   OpenOCD and GDB.
-3. **USB driver, depending on your system:**
+   OpenOCD and GDB. That's about 2 GB on disk.
+4. **USB driver, depending on your system:**
    - **macOS:** nothing to install.
    - **Windows 10/11:** the serial port works with Windows' own driver. For
      **debugging**, install Espressif's USB driver, or OpenOCD reports
@@ -116,8 +122,12 @@ session: flashing and debugging need the board on your USB port.
      curl -fsSL https://raw.githubusercontent.com/platformio/platformio-core/develop/platformio/assets/system/99-platformio-udev.rules | sudo tee /etc/udev/rules.d/99-platformio-udev.rules
      sudo udevadm control --reload-rules && sudo udevadm trigger
      ```
-4. **Plug the board's data USB-C into the computer** (not the one marked POWER).
+5. **Plug the board's data USB-C into the computer** (not the one marked POWER).
    It shows up as Espressif's USB JTAG/serial device, ID `303A:1001`.
+
+**Not needed for this board:** the CP210x or CH340 drivers many ESP32 guides
+start with (it has no USB-to-serial chip), the Arduino IDE, ESP-IDF, or a
+separate JTAG probe.
 
 ## Flash it
 
@@ -125,7 +135,9 @@ session: flashing and debugging need the board on your USB port.
 
 No tools needed on the computer doing the flashing, only Chrome or Edge.
 
-1. Build the one-file factory image (on any machine with PlatformIO):
+1. Build the one-file factory image (on any machine with PlatformIO). On
+   Windows, run it from VS Code's PlatformIO terminal as
+   `python tools\make_factory_image.py`.
 
    ```bash
    python3 tools/make_factory_image.py
@@ -194,8 +206,11 @@ does it. No probe, no extra wiring.
 The env uses Espressif's standalone GDB 11.2, not the GDB bundled with this
 toolchain, which needs Python 2.7 and fails to start on current Linux (Ubuntu
 24.04: `libpython2.7.so.1.0: cannot open shared object file`). See
-`tools/esp_gdb.py`. OpenOCD reaches the chip through Espressif's `esp_usb_jtag`
-driver (`interface/esp_usb_jtag.cfg` with `target/esp32s3.cfg`).
+`tools/esp_gdb.py`. Its launcher uses whichever supported Python 3 it finds, and
+runs a build without Python if there's none. That includes the Windows one,
+`xtensa-esp32s3-elf-gdb.exe`, so debugging needs no Python install either.
+OpenOCD reaches the chip through Espressif's `esp_usb_jtag` driver
+(`interface/esp_usb_jtag.cfg` with `target/esp32s3.cfg`).
 
 ## First-time setup
 
