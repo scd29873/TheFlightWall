@@ -149,6 +149,8 @@ namespace FirmwareUpdater
         // DevKit -- which is exactly the confusion this function prevents.
 #if defined(FLIGHTWALL_BOARD_MATRIXPORTAL_S3)
         return "matrixportal_s3";
+#elif defined(FLIGHTWALL_BOARD_WAVESHARE_S3_MATRIX)
+        return "waveshare_s3_matrix";
 #elif defined(CONFIG_IDF_TARGET_ESP32S3)
         return "esp32s3";
 #else

@@ -30,6 +30,31 @@ namespace HardwareConfiguration
     static const int8_t HUB75_CLK = 2;
     static const int8_t HUB75_LAT = 47;
     static const int8_t HUB75_OE = 14;
+#elif defined(FLIGHTWALL_BOARD_WAVESHARE_S3_MATRIX)
+    // Waveshare ESP32-S3-RGB-Matrix (SKU 34422). Also an S3, so it too needs its
+    // own flag and must come before CONFIG_IDF_TARGET_ESP32S3. The panel plugs
+    // into the board's 2x8 header through two SN74HC245 buffers, so these are
+    // FIXED BY THE PCB, like the MatrixPortal's.
+    //
+    // It is the ESP32-HUB75-MatrixPanel-DMA library's default S3 map with E
+    // routed to GPIO 9. Checked pin for pin against Waveshare's schematic (the
+    // pin table and U11/U12) and its own firmware: the IDF BSP's
+    // sdkconfig.defaults and the Arduino examples' esp32s3-default-pins.hpp
+    // (github.com/waveshareteam/ESP32-S3-RGB-Matrix).
+    static const int8_t HUB75_R1 = 4;
+    static const int8_t HUB75_G1 = 5;
+    static const int8_t HUB75_B1 = 6;
+    static const int8_t HUB75_R2 = 7;
+    static const int8_t HUB75_G2 = 15;
+    static const int8_t HUB75_B2 = 16;
+    static const int8_t HUB75_A = 18;
+    static const int8_t HUB75_B = 8;
+    static const int8_t HUB75_C = 3;
+    static const int8_t HUB75_D = 42;
+    static const int8_t HUB75_E = 9;
+    static const int8_t HUB75_LAT = 40;
+    static const int8_t HUB75_OE = 2;
+    static const int8_t HUB75_CLK = 41;
 #elif defined(CONFIG_IDF_TARGET_ESP32S3)
     // ESP32-S3-DevKitC-1 N16R8 map. Every pin exists on the S3 (GPIO 0-21, 26-48)
     // and AVOIDS: 26-32 (SPI flash), 33-37 (octal PSRAM), 0/3/45/46 (strapping),
@@ -102,6 +127,19 @@ namespace HardwareConfiguration
     // default sensor is I2C on the STEMMA QT connector and is unaffected.
     static const int8_t BUTTON_A_EXT_PIN = 10; // A3
     static const int8_t BUTTON_B_EXT_PIN = 11; // A4
+#elif defined(FLIGHTWALL_BOARD_WAVESHARE_S3_MATRIX)
+    // ONE button, and it is BOOT on GPIO 0 (10k pull-up on the board); the other
+    // button is RESET. So A = BOOT -- click toggles the panel, hold brightens --
+    // and B is absent (-1), which Buttons.cpp skips. Holding it through a reset
+    // still enters download mode, as BOOT always does.
+    //
+    // Not the GPIO header: IO45/IO46 carry 10k pull-DOWNS on the board (R59,
+    // R60 in the schematic), which beat INPUT_PULLUP, so a switch to GND there
+    // would read as held forever.
+    static const int8_t BUTTON_A_PIN = 0;
+    static const int8_t BUTTON_B_PIN = -1;
+    static const int8_t BUTTON_A_EXT_PIN = -1;
+    static const int8_t BUTTON_B_EXT_PIN = -1;
 #elif defined(CONFIG_IDF_TARGET_ESP32S3)
     // I2C is on 41/42 here, so 21 is genuinely free.
     static const int8_t BUTTON_A_PIN = 18;
@@ -162,6 +200,26 @@ namespace HardwareConfiguration
     // pin, and A3 (10) is the external button below. That leaves A2 (GPIO 9).
     static const uint8_t LIGHT_ANALOG_PIN = 5; // onboard ALS-PT19
     static const uint8_t LIGHT_EXTERNAL_PIN = 9; // = A2, for an external LDR
+    static const uint8_t ADC1_PIN_MIN = 1;
+    static const uint8_t ADC1_PIN_MAX = 10;
+#elif defined(FLIGHTWALL_BOARD_WAVESHARE_S3_MATRIX)
+    // NO light sensor on this board, and NO pin an analog one could use. ADC1 is
+    // GPIO 1-10 and the board owns all ten: 2-9 are HUB75, 1 is the TF card
+    // clock, 10 is the RTC's interrupt. The schematic's pin table even has an
+    // LDR column, and it is empty. The brightness schedule is the auto-dim here.
+    //
+    // I2C for an ADDED sensor goes to the 4-pin GPIO header (silkscreen GND,
+    // 3V3, IO46, IO45), the only pins the board brings out. Two catches, both
+    // from the schematic: each pin has a 10k pull-down fitted (R59/R60), which
+    // drags a typical breakout's 4.7-10k pull-ups below the S3's logic-high
+    // threshold, so the bus only works with ~2k pull-ups or those two resistors
+    // removed; and a high IO46 at reset blocks the hold-BOOT way into download
+    // mode (normal boot ignores it). The board's own I2C bus (47/48: RTC, IMU,
+    // SHTC3, codecs) is not on any connector, and runs at 1.8 V on the ESP side.
+    static const int8_t I2C_SDA = 46;
+    static const int8_t I2C_SCL = 45;
+    // Placeholder only: the empty window below refuses every pin, this one too.
+    static const uint8_t LIGHT_ANALOG_PIN = 0;
     static const uint8_t ADC1_PIN_MIN = 1;
     static const uint8_t ADC1_PIN_MAX = 10;
 #elif defined(CONFIG_IDF_TARGET_ESP32S3)
@@ -244,6 +302,13 @@ namespace HardwareConfiguration
     {
         return pin == LIGHT_ANALOG_PIN || pin == LIGHT_EXTERNAL_PIN;
     }
+#elif defined(FLIGHTWALL_BOARD_WAVESHARE_S3_MATRIX)
+    // EMPTY on purpose (MIN > MAX): the board owns every ADC1 pin -- see its
+    // light-sensor block above. The generic predicate below then accepts no pin
+    // at all, /api/status publishes adc1Pins as [], and the web UI withdraws
+    // the analog option instead of offering a pin that cannot work.
+    static const uint8_t ADC1_FREE_MIN = 1;
+    static const uint8_t ADC1_FREE_MAX = 0;
 #elif defined(CONFIG_IDF_TARGET_ESP32S3)
     static const uint8_t ADC1_FREE_MIN = 1;
     static const uint8_t ADC1_FREE_MAX = 3;
@@ -258,10 +323,21 @@ namespace HardwareConfiguration
     }
 #endif
 
+    // Whether an analog light sensor is possible on this board at all. Declared
+    // rather than read off the window, so a window emptied BY MISTAKE still
+    // fails the assert below instead of quietly switching the feature off.
+#if defined(FLIGHTWALL_BOARD_WAVESHARE_S3_MATRIX)
+    static const bool HAS_ANALOG_LIGHT_PIN = false;
+#else
+    static const bool HAS_ANALOG_LIGHT_PIN = true;
+#endif
+
     static_assert(ADC1_FREE_MIN >= ADC1_PIN_MIN && ADC1_FREE_MAX <= ADC1_PIN_MAX,
                   "the usable ADC1 window must lie inside the chip's ADC1 range");
-    static_assert(ADC1_FREE_MIN <= ADC1_FREE_MAX,
+    static_assert(!HAS_ANALOG_LIGHT_PIN || ADC1_FREE_MIN <= ADC1_FREE_MAX,
                   "the usable ADC1 window is empty; the analog sensor cannot be used on this board");
+    static_assert(HAS_ANALOG_LIGHT_PIN || ADC1_FREE_MIN > ADC1_FREE_MAX,
+                  "a board declared to have no analog pin must publish an empty ADC1 window");
     static_assert(rangeIsHub75Free(ADC1_FREE_MIN, ADC1_FREE_MAX),
                   "a pin in the advertised ADC1 window is a HUB75 line");
 
@@ -312,9 +388,10 @@ namespace HardwareConfiguration
                   "BUTTON_B_EXT_PIN is inside the advertised ADC1 window");
 
     static_assert(!isHub75Pin(LIGHT_ANALOG_PIN), "the default light-sensor pin is a HUB75 line");
-    static_assert(LIGHT_ANALOG_PIN >= ADC1_FREE_MIN && LIGHT_ANALOG_PIN <= ADC1_FREE_MAX,
+    static_assert(!HAS_ANALOG_LIGHT_PIN ||
+                      (LIGHT_ANALOG_PIN >= ADC1_FREE_MIN && LIGHT_ANALOG_PIN <= ADC1_FREE_MAX),
                   "the default light-sensor pin is outside the usable ADC1 window");
-    static_assert(isUsableAnalogPin(LIGHT_ANALOG_PIN),
+    static_assert(!HAS_ANALOG_LIGHT_PIN || isUsableAnalogPin(LIGHT_ANALOG_PIN),
                   "the default light-sensor pin is not one the light sensor will accept");
 #if defined(FLIGHTWALL_BOARD_MATRIXPORTAL_S3)
     // The pins the envelope 5-9 spans but the predicate must refuse.
@@ -338,12 +415,22 @@ namespace HardwareConfiguration
     static const bool LIGHT_DEFAULT_ANALOG = true;
     static const uint16_t LIGHT_DEFAULT_DARK_THRESHOLD = 40;
     static const uint16_t LIGHT_DEFAULT_HYSTERESIS = 40;
+#elif defined(FLIGHTWALL_BOARD_WAVESHARE_S3_MATRIX)
+    // OFF: there is no sensor unless one is added, and the header needs work
+    // before one can be (see the I2C note above). TCS3472 is only the type the
+    // form shows first if someone does add one; analog is impossible here.
+    static const bool LIGHT_DEFAULT_ENABLED = false;
+    static const bool LIGHT_DEFAULT_ANALOG = false;
+    static const uint16_t LIGHT_DEFAULT_DARK_THRESHOLD = 500;
+    static const uint16_t LIGHT_DEFAULT_HYSTERESIS = 150;
 #else
     static const bool LIGHT_DEFAULT_ENABLED = true;
     static const bool LIGHT_DEFAULT_ANALOG = false;
     static const uint16_t LIGHT_DEFAULT_DARK_THRESHOLD = 500;
     static const uint16_t LIGHT_DEFAULT_HYSTERESIS = 150;
 #endif
+    static_assert(HAS_ANALOG_LIGHT_PIN || !LIGHT_DEFAULT_ANALOG,
+                  "the default light sensor is analog on a board with no analog pin");
 
     // Default panel geometry (overridable at runtime from the web UI / Settings).
     // A build env can set its own with -DFW_PANEL_RES_X/-DFW_PANEL_RES_Y/

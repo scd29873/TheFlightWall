@@ -98,10 +98,11 @@ fi
 # an image whose target is not its own; see FirmwareUpdater::buildTarget().
 TARGET="$(basename "$(dirname "$BIN")")"
 case "$TARGET" in
-  esp32dev|esp32s3|matrixportal_s3) ;;
-  # Same board and pin map as matrixportal_s3 -- the env differs only in the
+  esp32dev|esp32s3|matrixportal_s3|waveshare_s3_matrix) ;;
+  # Same board and pin map as the base env -- the _4x1 env differs only in the
   # panel geometry it seeds -- and that is the target the device reports.
   matrixportal_s3_4x1) TARGET=matrixportal_s3 ;;
+  waveshare_s3_matrix_4x1) TARGET=waveshare_s3_matrix ;;
   *)
     echo "unrecognised build target '$TARGET' derived from $BIN" >&2
     echo "expected the image at firmware/.pio/build/<env>/firmware.bin" >&2

@@ -5,8 +5,9 @@ panels in one row**, a 256×64 wall. The firmware is FeatherKing's
 [TheFlightWall_OSS](https://github.com/FeatherKing/TheFlightWall_OSS), which
 already knew this board; what this fork adds is listed at the end.
 
-The build env is `matrixportal_s3_4x1`, and it is the default: a bare `pio run`
-builds it.
+The build env is `matrixportal_s3_4x1`: build it with `pio run -e matrixportal_s3_4x1`.
+The default env is now the [Waveshare ESP32-S3-RGB-Matrix](waveshare-s3-matrix-4x1.md)
+build, which shares everything on this page about the panels.
 
 ![256×64 wall: a flight card, a tracked flight, and the clock](../images/matrixportal-4x1-preview.png)
 
@@ -182,8 +183,8 @@ You need [PlatformIO](https://platformio.org/): the VS Code extension, or
 
 ```bash
 cd firmware
-pio run -t upload       # firmware  (env matrixportal_s3_4x1, the default)
-pio run -t uploadfs     # web UI + airline logos -- ERASES saved settings
+pio run -e matrixportal_s3_4x1 -t upload     # firmware
+pio run -e matrixportal_s3_4x1 -t uploadfs   # web UI + airline logos -- ERASES saved settings
 ```
 
 - **No serial port?** Hold **BOOT**, tap **RESET**, release BOOT, then upload again.
@@ -319,7 +320,14 @@ flashing.
 
 Compared with FeatherKing/TheFlightWall_OSS:
 
-- **`matrixportal_s3_4x1` env** (the default). A fresh board comes up at 256×64.
+- **Waveshare ESP32-S3-RGB-Matrix support**, now the default build
+  (`waveshare_s3_matrix_4x1`). It adds the board's pin map, octal flash and
+  PSRAM, and USB serial and debugging over one cable. BOOT is the only button,
+  and the web UI withdraws the analog light sensor, since this board has no pin
+  for one. See [its guide](waveshare-s3-matrix-4x1.md), which also covers
+  `tools/make_factory_image.py` (one file to flash from a browser) and the
+  settings-page emulator (`tools/webui_stub.mjs --board`, `--export`).
+- **`matrixportal_s3_4x1` env.** A fresh board comes up at 256×64.
   The env also asks the HUB75 library for at least **90 Hz**: at 256 columns and
   20 MHz, the library would otherwise settle at ~65 Hz. It trades one low colour
   bit for ~116 Hz. The arithmetic is in `platformio.ini`.

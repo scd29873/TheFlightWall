@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>FlightWall</title>
 <style>
-  :root { --bg:#0b0f17; --card:#141a26; --line:#26314a; --fg:#e8edf6; --muted:#8a98b5; --accent:#3b82f6; --ok:#22c55e; --warn:#f59e0b; }
+  :root { --bg:#0b0f17; --card:#141a26; --line:#26314a; --fg:#e8edf6; --muted:#8a98b5; --accent:#3b82f6; --ok:#22c55e; --warn:#f59e0b; color-scheme:dark; }
   * { box-sizing:border-box; }
   body { margin:0; font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; background:var(--bg); color:var(--fg); font-size:15px; line-height:1.45; }
   header { padding:10px 16px; border-bottom:1px solid var(--line); display:flex; align-items:center; justify-content:space-between; gap:10px; position:sticky; top:0; background:var(--bg); z-index:5; flex-wrap:wrap; }
@@ -813,10 +813,20 @@ async function loadStatus(){
         : 'Serving the page <b>built into the firmware</b>. Nothing downloaded yet.';
     }
     if('i2cSda' in s){ const p=$('i2cPins'); if(p) p.textContent = `SDA ${s.i2cSda} / SCL ${s.i2cScl}`; }
-    if('adc1Min' in s){ const a=$('adc1Range'); if(a) a.textContent = Array.isArray(s.adc1Pins)
-      ? s.adc1Pins.join(', ') + ('lightOnboardPin' in s ? ` — ${s.lightOnboardPin} is the onboard sensor` : '')
-      : `${s.adc1Min}-${s.adc1Max}`; }
-    if('buttonAPin' in s){ const b=$('btnPins'); if(b) b.textContent = `GPIO ${s.buttonAPin} (A) and GPIO ${s.buttonBPin} (B)`; }
+    if('adc1Min' in s){
+      // An empty list is a board with no free ADC1 pin at all (the Waveshare):
+      // withdraw the analog choice rather than offer a pin the device refuses.
+      const none = Array.isArray(s.adc1Pins) && !s.adc1Pins.length;
+      const a=$('adc1Range'); if(a) a.textContent = none ? 'none free on this board'
+        : Array.isArray(s.adc1Pins)
+        ? s.adc1Pins.join(', ') + ('lightOnboardPin' in s ? ` — ${s.lightOnboardPin} is the onboard sensor` : '')
+        : `${s.adc1Min}-${s.adc1Max}`;
+      const opt=document.querySelector('#lightSensorType option[value="analog"]'); if(opt) opt.disabled = none;
+      $('lightSensorPin').disabled = none;
+    }
+    if('buttonAPin' in s){ const b=$('btnPins'); if(b) b.textContent = s.buttonBPin >= 0
+      ? `GPIO ${s.buttonAPin} (A) and GPIO ${s.buttonBPin} (B)`
+      : `GPIO ${s.buttonAPin} (A) — this board has no button B`; }
     if('lightLevel' in s && s.lightLevel >= 0){
       const el = $('lightLive');
       if(el) el.textContent = `Live reading: ${s.lightLevel}  ·  panel ${s.lightDark ? 'OFF (dark)' : 'on (lit)'} — set the threshold just above the dark value.`;

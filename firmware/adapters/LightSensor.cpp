@@ -129,6 +129,15 @@ void LightSensor::begin()
     }
 
     case LightSensorType::Analog:
+        // First, whether the board can do analog at all. The Waveshare cannot,
+        // and its placeholder pin is GPIO 0 -- which is also its button, so
+        // without this the refusal below would blame the button instead.
+        if (!HardwareConfiguration::HAS_ANALOG_LIGHT_PIN)
+        {
+            Serial.println("LightSensor: this board has no free ADC1 pin, so no analog "
+                           "sensor; use an I2C sensor or the brightness schedule");
+            break;
+        }
         // Cross-check against the buttons. On the classic ESP32 the free-pin budget is
         // so thin that BUTTON_B lands on 33 — a legitimate ADC1 pin — so this
         // collision is reachable straight from the web UI. Two subsystems silently

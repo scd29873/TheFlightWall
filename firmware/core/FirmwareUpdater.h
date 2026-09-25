@@ -52,7 +52,7 @@ namespace FirmwareUpdater
 
     /**
      * The build target this image was compiled for: "matrixportal_s3",
-     * "esp32s3" or "esp32dev".
+     * "waveshare_s3_matrix", "esp32s3" or "esp32dev".
      *
      * WHY THE OTA PATH NEEDS THIS. There is ONE firmware slot on the server and
      * the device verifies only the SIGNATURE -- which proves the image is
